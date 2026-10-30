@@ -319,11 +319,12 @@ Datafox 不因缺少遥测自动删除业务 Pod，不在 v1 引入“埋点失�
 
 | 阶段 | 产生的新能力 | 架构验收点 |
 | --- | --- | --- |
-| P0 | 锁定 Operator/Collector 发行版、CRD 和语言镜像；建立配置预检 | 输入来源优先级与危险环境变量组合可检测 |
-| P1 | Collector/Operator 安装配置及 Java 自动注入镜像 | Pod 能安全创建、版本和 Pod UID 进入真实 OTLP Resource |
-| P2 | Python / Node.js / .NET 自动埋点和 Go SDK-only 集成 | 多语言最终 Resource 契约一致；不影响未启用注入的 Pod |
-| P3 | CI/CD Release API 联调 | 同版本多次部署、滚动升级与回滚的事件关系可核验 |
-| P4 | 故障注入、兼容性矩阵与性能门禁 | Pod 创建与业务运行风险分别测量；可执行受控回滚 |
+| M0 | 锁定 Operator/Collector 发行版、CRD、语言镜像与应用 JDK/Kubernetes 矩阵 | 输入来源优先级、匹配范围和危险环境变量组合可验证 |
+| M1 | Datafox Java Agent 注入镜像及 Operator 配置 | Java Pod 安全创建，版本进入真实 OTLP Resource |
+| M2 | Collector 基础设施补全和 Pod 关联 | Pod UID 与 Workload 属性正确，应用身份保持不变 |
+| M3 | Python / Node.js / .NET 自动埋点和 Go SDK-only 集成 | 多语言最终 Resource 契约一致 |
+| M4 | CI/CD Release API 联调 | 同版本多次部署、滚动升级与回滚关系可核验 |
+| M5 | 故障注入、升级兼容性与性能门禁 | 未启用注入的业务无容器 Mutation，异常注入可检测和回滚 |
 
 具体执行顺序、Manifest、Dockerfile、Collector Processor、RBAC、测试环境、44 个测试 ID、事件状态转移表均见 [实施与验证手册](implementation-and-verification.md)。
 
