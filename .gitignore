@@ -1,0 +1,5 @@
+# Local lock files created by RepoFoundry validation / controllers.
+# Do not commit process locks; committed manifests live next to them.
+docs/.engineering/lock
+docs/.designctl/lock
+docs/.epctl/lock
