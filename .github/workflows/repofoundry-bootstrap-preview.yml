@@ -1,31 +1,52 @@
-name: RepoFoundry Bootstrap Preview (temporary)
+name: RepoFoundry Bootstrap Apply and Validate (temporary)
 on:
   push:
     branches:
       - chore/initialize-repofoundry
     paths:
       - .github/workflows/repofoundry-bootstrap-preview.yml
-  workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  preview:
+  bootstrap:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Fetch pinned RepoFoundry distribution
         run: |
           git clone --depth 1 --branch v0.15.1 https://github.com/XiaoWeiKIN/RepoHarnessKit.git /tmp/repofoundry
-      - name: Preview Harness and Engineering Specs
+          test "$(git -C /tmp/repofoundry rev-parse HEAD)" = "7a05228317618c4c87651f6a5e95dd7fa524609c"
+      - name: Run repeatable preview then apply
+        shell: bash
         run: |
-          python3 --version
-          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . adapter list
-          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . bootstrap --adapter codex --adapter portable | tee bootstrap-preview.txt
+          set -euo pipefail
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . bootstrap --adapter codex --adapter portable | tee repofoundry-preview.json
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . bootstrap --adapter codex --adapter portable --apply | tee repofoundry-apply.json
+      - name: Validate Harness and locked Engineering Specs
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . validate --harness | tee repofoundry-validate-harness.json
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . validate --adapter codex | tee repofoundry-validate-codex.json
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . validate --adapter portable | tee repofoundry-validate-portable.json
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . spec validate | tee repofoundry-validate-specs.json
+      - name: Commit validated bootstrap files to branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f repofoundry-preview.json repofoundry-apply.json repofoundry-validate-*.json
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: initialize RepoFoundry Harness (codex and portable)"
+            git push origin HEAD:chore/initialize-repofoundry
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: repofoundry-bootstrap-preview
-          path: bootstrap-preview.txt
+          name: repofoundry-bootstrap-apply-validation
+          path: repofoundry-*.json
           if-no-files-found: ignore
