@@ -461,7 +461,7 @@ CI/CD 产生并持久化稳定的 `release_id`（制品或构建身份）、`dep
 | `succeeded` / `failed` | 迟到的 `deployment.started` | 若身份一致且 `started.occurred_at <= terminal.occurred_at`，补记事件 | 终态**不变** |
 | `succeeded` / `failed` | 相同终态的不同 `event_id` | 不接受第二份不一致的终态证明 | `409 Conflict` |
 | `succeeded` / `failed` | 相反终态 | 拒绝，保留原终态 | `409 Conflict` |
-| 任意 | 已存在 `event_id` 且规范化载荷字节相同 | 幂等返回既有结果 | `200 OK` |
+| 任意 | 已存在 `event_id` 且解析后的完整事件字段相同（JSON 键顺序与空白不影响相等判断） | 幂等返回既有结果 | `200 OK` |
 | 任意 | 已存在 `event_id` 但载荷不同 | 拒绝，不产生写入副作用 | `409 Conflict` |
 | 任意 | 未知类型、错误身份、非法时间关系 | 拒绝，不产生写入副作用 | `422 Unprocessable Entity`（设计值） |
 
