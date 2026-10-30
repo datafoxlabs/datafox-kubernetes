@@ -587,6 +587,22 @@ kubectl get validatingwebhookconfigurations -o yaml
 | T26 | 安全 | 性能 / 压测 | 与基线对比满足明确 SLO | 待验证 |
 | T27 | 安全 | Webhook / Collector 升级 | 回归测试通过，业务 Pod 未被意外 Mutation | 待验证 |
 | T28 | 安全 | RBAC / 元数据选择 | 最小权限，不批量采集敏感 Labels/Annotations | 待验证 |
+| T29 | 注入配置 | `OTEL_RESOURCE_ATTRIBUTES` 普通字面量 | CI 接受，最终 SDK Resource 保留用户显式属性 | 待验证 |
+| T30 | 注入配置 | `OTEL_RESOURCE_ATTRIBUTES.valueFrom.configMapKeyRef` | CI 拒绝，不创建生产 Pod；隔离测试重现上游失败路径 | 待验证 |
+| T31 | 注入配置 | `OTEL_RESOURCE_ATTRIBUTES.valueFrom.secretKeyRef` | CI 拒绝，不泄露 Secret 值，隔离测试检查 Pod CREATE | 待验证 |
+| T32 | 注入配置 | `envFrom` 包含 `OTEL_RESOURCE_ATTRIBUTES` 等同名键 | CI 拒绝，不允许用户来源被静默遮蔽 | 待验证 |
+| T33 | 注入配置 | `envFrom` 引用/完整键集合无法解析 | CI 明确拒绝 opt-in，不继续 Pod CREATE | 待验证 |
+| T34 | Java | `JAVA_TOOL_OPTIONS.valueFrom` | CI 拒绝；隔离测试确认 Operator Mutator 错误可能丢失 Agent | 待验证 |
+| T35 | Java | 已有普通 `JAVA_TOOL_OPTIONS.value` | 注入后保留原 JVM 选项，Agent 参数只添加一次 | 待验证 |
+| T36 | 多语言 | `NODE_OPTIONS` / `PYTHONPATH` / .NET 启动键冲突 | 按锁定 Operator 版本验证来源兼容性、覆盖行为和失败规则 | 待验证 |
+| T37 | Admission | 无注入 Pod 仍匹配 Webhook | 记录真实匹配规则、无副作用的 Pod Spec 和创建延迟基线 | 待验证 |
+| T38 | Admission | opt-in Pod 在 Webhook fail-open 后运行 | 检测 Agent/SDK 注入缺失、阻止扩量；业务 Pod 不因遥测缺失被杀 | 待验证 |
+| T39 | 服务身份 | `app.kubernetes.io/instance` 与 `name` 不同 | 缺显式身份 CI 拒绝；指定后 SDK Resource 等于业务服务名 | 待验证 |
+| T40 | 服务身份 | 同一服务跨 Namespace、Cluster、Helm Release | `service.namespace/name` 稳定，K8s 物理属性及发布事件目标正确 | 待验证 |
+| T41 | 发布事件 | 同 `event_id` 不同载荷 | `409` 且无状态修改；相同载荷重试幂等 | 待验证 |
+| T42 | 发布事件 | succeeded 与 failed 冲突、终态前收到成功事件 | 冲突为 `409`；迟到的 started 不回退终态 | 待验证 |
+| T43 | 发布事件 | 回滚恢复旧制品 | 新 Deployment ID + 关系引用，原历史终态不可变 | 待验证 |
+| T44 | 发布事件 | 未知类型、身份变化、非法时间 | `422` 或规定拒绝状态，拒绝后不产生写入副作用 | 待验证 |
 
 ### 7.1 E2E 最小断言
 
@@ -614,16 +630,34 @@ assert collector_output["service.version"] == sdk_output["service.version"]
 
 同时记录最终 Pod 注入的 `OTEL_RESOURCE_ATTRIBUTES` 和 SDK 实际发送的 Resource，以发现不同语言 SDK 自身版本检测与平台版本覆盖的差异。
 
+### 7.3 配置来源与发布状态机负面测试
+
+**配置来源矩阵（隔离测试集群）**：对同一业务测试容器分别使用无显式资源、字面量 `env.value`、ConfigMap `valueFrom`、Secret `valueFrom`、`envFrom` 键冲突、无法读取的 `envFrom` 和 Java `JAVA_TOOL_OPTIONS.valueFrom`。先断言发布校验的允许/拒绝，再在**一次性测试命名空间**中对受影响的上游机制复现 Pod CREATE 与实际 Pod Spec。不得将负面输入交给生产 API Server 验证；同时需要验证未启用注入的同一输入不被 Datafox 的 CI 注入门禁误拒绝。
+
+**发布事件矩阵（Backend 契约层）**：
+
+| 输入事件顺序 | 预期状态 |
+| --- | --- |
+| started → succeeded | `succeeded` |
+| succeeded → 迟到且时间早于 succeeded 的 started | 仍为 `succeeded`，只补记历史 |
+| started → failed → succeeded | 终态 `failed`，后续 `409` |
+| 同一 `event_id` 重复且 payload 相同 | 只保存一次 |
+| 同一 `event_id` 重复但 payload 不同 | `409`，状态不变 |
+| 原部署 succeeded → 新 Deployment `trigger=rollback` 并 succeeded | 原部署仍 succeeded，新部署独立关联 |
+| 不同发布事件使用同一 `deployment_id` 却改变 Service/Artifact/Target | 拒绝并保留原身份 |
+
+所有断言都是**待实现的测试契约**，不是本 PR 的已通过结果。
+
 ## 8. 交付边界与里程碑
 
 | 里程碑 | 工作内容 | 门禁 |
 | --- | --- | --- |
-| M0 | 锁定 Operator、Collector、语言镜像/JDK/K8s 矩阵，建立基线 | 版本表与兼容性计划经评审 |
-| M1 | Datafox Java 注入镜像 + Instrumentation 配置 | T01–T09 |
+| M0 | 锁定 Operator、Collector、语言镜像/JDK/K8s 矩阵，建立基线 | 版本表、Webhook 匹配范围及配置来源矩阵经评审 |
+| M1 | Datafox Java 注入镜像 + Instrumentation 配置 | T01–T09、T29–T35、T39–T40 |
 | M2 | Collector 基础设施补全 + Pod 关联 | T14–T18、T28 |
-| M3 | Python / Node.js / .NET / Go E2E | T10–T13、T19 |
-| M4 | Release Tracking API / CI 事件联调 | T20–T23 |
-| M5 | 安全故障演练、压力测试、升级验证 | T24–T27 |
+| M3 | Python / Node.js / .NET / Go E2E | T10–T13、T19、T36 |
+| M4 | Release Tracking API / CI 事件联调 | T20–T23、T41–T44 |
+| M5 | 安全故障演练、压力测试、升级验证 | T24–T27、T37–T38 |
 
 本仓库可以先维护文档、Helm 配置和 E2E；Release Tracking 的 Backend API 由 Datafox Backend 仓库实现。在没有 Backend 联调前，M4 不得标记为完成。
 
