@@ -1,0 +1,671 @@
+{
+  "catalog": {
+    "catalog_id": "io.github.xiaoweikin.engineering-specifications",
+    "catalog_version": "1.9.0",
+    "resolved_revision": "b0719f806615c0bb4f3d496931f14b6dc29df7e6",
+    "sha256": "58a29e2e6c7d0388511023adaaa18d38ca9aeef441ead935f4b4e3d3acd04285"
+  },
+  "owner": "repo-foundry",
+  "schema_version": 2,
+  "specs": [
+    {
+      "frame_sections": [
+        "Purpose",
+        "Agent workflow",
+        "Terminology",
+        "Exceptions",
+        "Agent handoff"
+      ],
+      "id": "core/semantic-naming",
+      "mode": "requirements",
+      "path": "docs/agent-guides/managed/core/semantic-naming.md",
+      "project_owned": false,
+      "requirements": [
+        {
+          "activation": "Load when choosing or reviewing a shared or public name for observable behavior.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1095,
+          "context_dependencies": [],
+          "end_byte": 4341,
+          "id": "SEM-NAME-001",
+          "sha256": "786e9f6b841359d1cfdd13cfd2f61ca34f2583a9f98f410dc59c443a661b63d8",
+          "start_byte": 3246,
+          "title": "Names describe observable contracts",
+          "verification": {
+            "end_byte": 13004,
+            "sha256": "8f03fd4fece428bae90b79ef1da9727a71268d0bc078d10aa444ba77a78e51cd",
+            "start_byte": 12931
+          }
+        },
+        {
+          "activation": "Load when naming or changing parse, decode, validate, normalize, extract, load, fetch, resolve, plan, or execute behavior.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 3278,
+          "context_dependencies": [
+            "SEM-NAME-001"
+          ],
+          "end_byte": 7619,
+          "id": "SEM-VERB-001",
+          "sha256": "cb804243553b3eb3bf70ac49ba46133df5d0d87cdb3c4bf3feeb7a9fba3ee47d",
+          "start_byte": 4341,
+          "title": "Semantic verbs keep stable meanings",
+          "verification": {
+            "end_byte": 13076,
+            "sha256": "6882c5098dfce699d873bec9c9fb49315bea6ad4a2ad78cb241daaa240507c90",
+            "start_byte": 13005
+          }
+        },
+        {
+          "activation": "Load when one concept maps across code, wire, storage, metrics, protocols, or documentation.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1243,
+          "context_dependencies": [
+            "SEM-NAME-001"
+          ],
+          "end_byte": 8862,
+          "id": "SEM-SURFACE-001",
+          "sha256": "b6fabb5d54a183d590475220fdd95e02dd0cbdf029f87a6342957da5a213b3ab",
+          "start_byte": 7619,
+          "title": "Cross-surface mappings stay explicit",
+          "verification": {
+            "end_byte": 13141,
+            "sha256": "c0068a68679e835af90acca5baa3d4fe2a84b0892b032aab87207b7f20ce49d0",
+            "start_byte": 13077
+          }
+        },
+        {
+          "activation": "Load when identifiers, units, states, time concepts, or external enum values could be confused.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1024,
+          "context_dependencies": [
+            "SEM-NAME-001"
+          ],
+          "end_byte": 9886,
+          "id": "SEM-TYPE-001",
+          "sha256": "b6214c17273bfe58ffe31676964f23396709df2a48fe9cc0c07f5aef674426e8",
+          "start_byte": 8862,
+          "title": "Types and names expose semantic distinctions",
+          "verification": {
+            "end_byte": 13209,
+            "sha256": "89a8dd6179c20d7a35b296a37f743ece071ceb89f077e47ef7ef6718d24ec566",
+            "start_byte": 13142
+          }
+        },
+        {
+          "activation": "Load when renaming a published API, schema, storage, configuration, telemetry, or other external name.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 893,
+          "context_dependencies": [
+            "SEM-NAME-001",
+            "SEM-SURFACE-001"
+          ],
+          "end_byte": 10779,
+          "id": "SEM-COMPAT-001",
+          "sha256": "383bfa3282d636922e70927ec9960078093c783febf9ee1499169d5b20da001f",
+          "start_byte": 9886,
+          "title": "Stable names change through migration",
+          "verification": {
+            "end_byte": 13275,
+            "sha256": "ccc3e3e31e13f9b11fc3e39470b5dd8998977a9489e0e20013ac98c8eb8140e0",
+            "start_byte": 13210
+          }
+        }
+      ],
+      "requires": [],
+      "sections": [
+        {
+          "end_byte": 860,
+          "name": "Purpose",
+          "sha256": "982f9817f2fb6cb31a2c3a01c0e8eb05a2144f405d4d4dfd1ac3960b3ebb9ea4",
+          "start_byte": 479
+        },
+        {
+          "end_byte": 1807,
+          "name": "Applicability",
+          "sha256": "b2e5078b3484b2fc9f828ce0f3873656c9487c03c7e40b3e649b2fdfacf30fee",
+          "start_byte": 860
+        },
+        {
+          "end_byte": 2363,
+          "name": "Agent workflow",
+          "sha256": "6ddd7abfdc8883cb38b65b85dfdd2eeaed8f6c88e78cb616da7b85768b7998db",
+          "start_byte": 1807
+        },
+        {
+          "end_byte": 3229,
+          "name": "Terminology",
+          "sha256": "c9d4d1be578ca9ac2853fa7435f128d8203e3492fe2f700526803e95670491b3",
+          "start_byte": 2363
+        },
+        {
+          "end_byte": 10779,
+          "name": "Requirements",
+          "sha256": "f4e6d0f8b0ba88f0a56c9d0f08d3908ff039ce4d6f3f2f1bb6828bc36398ba11",
+          "start_byte": 3229
+        },
+        {
+          "end_byte": 11689,
+          "name": "Approved patterns",
+          "sha256": "71008287611b6a654c7adc06e00595faad0beecedc3cdf97480b7afcefc94305",
+          "start_byte": 10779
+        },
+        {
+          "end_byte": 12589,
+          "name": "Rejected patterns",
+          "sha256": "177a38e20db501e7ea07a94abeeca69cc8d2e47ab91cd500d3034d4f8f49e085",
+          "start_byte": 11689
+        },
+        {
+          "end_byte": 12861,
+          "name": "Exceptions",
+          "sha256": "6be798b42af154f9099afadec828914ad202e5dd21edb80565043560151eb251",
+          "start_byte": 12589
+        },
+        {
+          "end_byte": 13277,
+          "name": "Verification",
+          "sha256": "b6e0c360fc80515c6ffd0ba0c4d479fe918518fe082923f0493fa39cf6f16a1f",
+          "start_byte": 12861
+        },
+        {
+          "end_byte": 13652,
+          "name": "Agent handoff",
+          "sha256": "fd245736b21d0d2b9f9af363b25d7eb81ad1da275e142c51ff3137e93102b503",
+          "start_byte": 13277
+        },
+        {
+          "end_byte": 15800,
+          "name": "Compatibility and migration",
+          "sha256": "90ce8bc820c635352468414966b46a1f604acb4618a61b57313600d48627816d",
+          "start_byte": 13652
+        },
+        {
+          "end_byte": 16031,
+          "name": "References",
+          "sha256": "ad78eeb3960e4137f9249877a391d7da0dde3557f11f929f1c2365650ea93572",
+          "start_byte": 15800
+        }
+      ],
+      "sha256": "b190713f27efc11eba59551d4026036d87f30027dd624b17e62d6627e5814c83",
+      "title": "Semantic Naming",
+      "version": "1.2.0"
+    },
+    {
+      "frame_sections": [
+        "Purpose",
+        "Agent workflow",
+        "Terminology",
+        "Exceptions",
+        "Agent handoff"
+      ],
+      "id": "core/data-boundaries",
+      "mode": "requirements",
+      "path": "docs/agent-guides/managed/core/data-boundaries.md",
+      "project_owned": false,
+      "requirements": [
+        {
+          "activation": "Load when decoding external bytes, tokens, rows, fields, configuration, or tool results.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1116,
+          "context_dependencies": [],
+          "end_byte": 4358,
+          "id": "DATA-SHAPE-001",
+          "sha256": "15aad60c8c0390cb04b6c71e10dddc8862b18f8b269e5728ffb3b47c17623921",
+          "start_byte": 3242,
+          "title": "Decoding produces an untrusted shape",
+          "verification": {
+            "end_byte": 13133,
+            "sha256": "82708b36db182749e5eeb28abb69bd6151414e84c0efd1ce17f7e84f4786a4da",
+            "start_byte": 13034
+          }
+        },
+        {
+          "activation": "Load when converting an untrusted boundary shape into a domain value or validating a type with no safe zero value.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1192,
+          "context_dependencies": [
+            "DATA-SHAPE-001"
+          ],
+          "end_byte": 5550,
+          "id": "DATA-PARSE-001",
+          "sha256": "aa3edb9bc2af475889800c495630b9a649bfdd8e0651d6b7d10ab1069dbd2849",
+          "start_byte": 4358,
+          "title": "Parsing returns a domain-safe value",
+          "verification": {
+            "end_byte": 13223,
+            "sha256": "255a280de407b7cf3ee3dd95d293cfaa32011378bf0d9e363d5abc6738ef637c",
+            "start_byte": 13134
+          }
+        },
+        {
+          "activation": "Load when invalid or partially parsed input could reach writes, messages, commands, or other effects.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 991,
+          "context_dependencies": [
+            "DATA-PARSE-001"
+          ],
+          "end_byte": 6541,
+          "id": "DATA-EFFECT-001",
+          "sha256": "f4c2c3ff70ed24e050b5df9c3122c09bbec1003a9eb71ff07aef1109f6b3adfa",
+          "start_byte": 5550,
+          "title": "Rejected input cannot trigger effects",
+          "verification": {
+            "end_byte": 13314,
+            "sha256": "d7a56c5c04c66ff7004ab493b0d7d03c7449837433cd01b59f6b19df2ce6ede2",
+            "start_byte": 13224
+          }
+        },
+        {
+          "activation": "Load when defining, translating, logging, or returning errors for rejected external input.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1165,
+          "context_dependencies": [
+            "DATA-PARSE-001"
+          ],
+          "end_byte": 7706,
+          "id": "DATA-ERROR-001",
+          "sha256": "80430dfd695cde1b1916817486e3031fd6cfeb3e668ebdc2f251bbb6fbbc6bf4",
+          "start_byte": 6541,
+          "title": "Boundary errors are actionable and secret-safe",
+          "verification": {
+            "end_byte": 13390,
+            "sha256": "850f2ac672de6614673f967a8ebf48fad73aaa102758fc67d579a9e5f6663ff0",
+            "start_byte": 13315
+          }
+        },
+        {
+          "activation": "Load when trimming, case-folding, normalizing, decoding, reordering, or canonicalizing protocol-owned values.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1225,
+          "context_dependencies": [
+            "SEM-VERB-001"
+          ],
+          "end_byte": 8931,
+          "id": "DATA-NORMALIZE-001",
+          "sha256": "c1bfd662ad8e87390bc4bd28ba843e2d8988f1743285f6dae3e678e2dbda9af3",
+          "start_byte": 7706,
+          "title": "Protocol-owned values preserve their contract",
+          "verification": {
+            "end_byte": 13477,
+            "sha256": "db5fca4f42fc338b80969cf1bb78b783ca57bd67516fa0316f6fd9098978e989",
+            "start_byte": 13391
+          }
+        }
+      ],
+      "requires": [
+        "core/semantic-naming"
+      ],
+      "sections": [
+        {
+          "end_byte": 975,
+          "name": "Purpose",
+          "sha256": "a116f97b338ec7d302358d7931c3b46619222411e69ecb661ad67f24b1c74fb8",
+          "start_byte": 497
+        },
+        {
+          "end_byte": 1985,
+          "name": "Applicability",
+          "sha256": "103cbc82bc77cb48fc3c571c7ce4ac03d9b71c1cf03bfd7b685bf7bbf54d9a2d",
+          "start_byte": 975
+        },
+        {
+          "end_byte": 2589,
+          "name": "Agent workflow",
+          "sha256": "8c7a63f537f26d5c47cacb63d2273a9af141c926ab58f4b23437e0a1588cea57",
+          "start_byte": 1985
+        },
+        {
+          "end_byte": 3225,
+          "name": "Terminology",
+          "sha256": "e378fb9e74d28aac36458d7a3d1099887fcb224b907b512194aef96a12fe9263",
+          "start_byte": 2589
+        },
+        {
+          "end_byte": 8931,
+          "name": "Requirements",
+          "sha256": "9ff8300a3a970210f00cf9195131b8b6c59c2ea7cebf9ef79aa90eac3280bc2d",
+          "start_byte": 3225
+        },
+        {
+          "end_byte": 11966,
+          "name": "Approved patterns",
+          "sha256": "9d84a76152bf19f90ca352eeb5660c7e4a814cc4c1935cee2865a1d58e4fc778",
+          "start_byte": 8931
+        },
+        {
+          "end_byte": 12534,
+          "name": "Rejected patterns",
+          "sha256": "e8490fd8de76aaa412d1116220797549c3965b615987d08ad215ad45c31d21e3",
+          "start_byte": 11966
+        },
+        {
+          "end_byte": 12964,
+          "name": "Exceptions",
+          "sha256": "6f647d6373e7eb5c6a5cc96e8c28b4c43619aa85436c8e39c0714e53eff902e7",
+          "start_byte": 12534
+        },
+        {
+          "end_byte": 13479,
+          "name": "Verification",
+          "sha256": "1d6a1c462c770d3cbb8815fc4b9516e00b641a3eaebac91e994bc3bdd6ed46c8",
+          "start_byte": 12964
+        },
+        {
+          "end_byte": 13866,
+          "name": "Agent handoff",
+          "sha256": "255b94b4cc98aee4874cf803d165dc6fa2b4971dcf365d66fa348c0d7570726d",
+          "start_byte": 13479
+        },
+        {
+          "end_byte": 15237,
+          "name": "Compatibility and migration",
+          "sha256": "f533b55ec8332455be63da7d2358c08db7457ee25db034d7796c3638a70d8a2c",
+          "start_byte": 13866
+        },
+        {
+          "end_byte": 15634,
+          "name": "References",
+          "sha256": "498bae0607b45af7107516de33933eb8a8f25b223911c3e3c3c33268697636f3",
+          "start_byte": 15237
+        }
+      ],
+      "sha256": "4a6a68d93110ff3853a825ec4ce78d1f8731bd1fe635b7aaa1eccb64a56819e9",
+      "title": "Data Boundaries",
+      "version": "0.2.1"
+    },
+    {
+      "frame_sections": [
+        "Purpose",
+        "Agent workflow",
+        "Terminology",
+        "Exceptions",
+        "Agent handoff"
+      ],
+      "id": "core/implementation-simplicity",
+      "mode": "requirements",
+      "path": "docs/agent-guides/managed/core/implementation-simplicity.md",
+      "project_owned": false,
+      "requirements": [
+        {
+          "activation": "Load when deciding supported inputs, use cases, edge behavior, or an algorithm's scope.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1067,
+          "context_dependencies": [],
+          "end_byte": 4769,
+          "id": "SIM-SCOPE-001",
+          "sha256": "a8c97f82fbfac6c4ba21f96a5696862b0e8093dc5dce64bea8acab29bde28e5a",
+          "start_byte": 3702,
+          "title": "Support real requirements before hypothetical cases",
+          "verification": {
+            "end_byte": 17393,
+            "sha256": "03cb9f0ad497a97d65378cd4de990cadb54c18cb5e192eca656785bcf07e0706",
+            "start_byte": 17313
+          }
+        },
+        {
+          "activation": "Load when introducing a slow path, special-case branch, or additional work on a frequent execution path.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1033,
+          "context_dependencies": [
+            "SIM-SCOPE-001"
+          ],
+          "end_byte": 5802,
+          "id": "SIM-PATH-001",
+          "sha256": "f1b7f61f89fa37e03c7f915a43849a03659af74b069cf2115a865560f76b7326",
+          "start_byte": 4769,
+          "title": "Keep the common execution path direct",
+          "verification": {
+            "end_byte": 17471,
+            "sha256": "316d07e224e39b7bb75521aafba8a07439f02df2b4749d8f61652b27700f0045",
+            "start_byte": 17394
+          }
+        },
+        {
+          "activation": "Load when ordering prerequisite checks, request conversion, routing, metadata loading, compilation, or execution.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1753,
+          "context_dependencies": [
+            "SIM-SCOPE-001",
+            "SIM-FAIL-001"
+          ],
+          "end_byte": 7555,
+          "id": "SIM-ORDER-001",
+          "sha256": "78e05d760e8360c8106f3c8be5d65c2a9b44e085b424ee374edc494dde3cdf36",
+          "start_byte": 5802,
+          "title": "Resolve decisive prerequisites before costly stages",
+          "verification": {
+            "end_byte": 17567,
+            "sha256": "21680dc391d870fe0b2cb62d9f3891c13c36b479511b9fa418f10a377d7083e4",
+            "start_byte": 17472
+          }
+        },
+        {
+          "activation": "Load when handling invalid, unsupported, or unexpected inputs or designing fallback behavior.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1064,
+          "context_dependencies": [
+            "SIM-SCOPE-001"
+          ],
+          "end_byte": 8619,
+          "id": "SIM-FAIL-001",
+          "sha256": "f43465995a01adec58ffe918f7d4c591bf2cea91ac86e470e901f81a3e9d5152",
+          "start_byte": 7555,
+          "title": "Fail explicitly outside the supported contract",
+          "verification": {
+            "end_byte": 17652,
+            "sha256": "aade13b9f56d3906664613a8ab79f555f6c56572982a63196b47bda7aae496b5",
+            "start_byte": 17568
+          }
+        },
+        {
+          "activation": "Load when adding guards, null checks, type checks, error wrapping, or defensive validation.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1111,
+          "context_dependencies": [
+            "SIM-SCOPE-001",
+            "SIM-FAIL-001"
+          ],
+          "end_byte": 9730,
+          "id": "SIM-CHECK-001",
+          "sha256": "843da95e3949f58c718f002e2bbf44e21d7003e53368fab7ce3ad5085aa70914",
+          "start_byte": 8619,
+          "title": "Validate at meaningful boundaries",
+          "verification": {
+            "end_byte": 17731,
+            "sha256": "8779f48743550bb15b29925733a516ebcfefb08568eaf85ca3cd60197ff2a9d9",
+            "start_byte": 17653
+          }
+        },
+        {
+          "activation": "Load when extracting helpers, creating interfaces, adding indirection, or consolidating duplicate logic.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1043,
+          "context_dependencies": [
+            "SIM-SCOPE-001"
+          ],
+          "end_byte": 10773,
+          "id": "SIM-ABSTRACT-001",
+          "sha256": "b4daae7be0eddc62c52fb5e8293f232be8fce8197b4e378193569f4a009ede0a",
+          "start_byte": 9730,
+          "title": "Require value from abstraction",
+          "verification": {
+            "end_byte": 17814,
+            "sha256": "a15ac6ed3295ae3547d88c0363b776be044b4e34bbb1b33de2513bdd0c384c09",
+            "start_byte": 17732
+          }
+        },
+        {
+          "activation": "Load when a straightforward implementation gains wrappers, hidden state, nested branches, or special cases.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1007,
+          "context_dependencies": [
+            "SIM-ABSTRACT-001"
+          ],
+          "end_byte": 11780,
+          "id": "SIM-READ-001",
+          "sha256": "d487c73fe8a1d76884d389e1c9a539534b71a85d3df5b71ae4f464fef9547546",
+          "start_byte": 10773,
+          "title": "Keep local control flow understandable",
+          "verification": {
+            "end_byte": 17903,
+            "sha256": "e9d045ad633a8678e4a55acc8e47aeeeaacbff3a176e1a7d834b2212e53e5167",
+            "start_byte": 17815
+          }
+        },
+        {
+          "activation": "Load when writing or reordering a function that coordinates several distinct business stages.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1285,
+          "context_dependencies": [
+            "SIM-READ-001"
+          ],
+          "end_byte": 13065,
+          "id": "SIM-STAGE-001",
+          "sha256": "f7d5ec046165e0643f85560f3b3b5acc209d4dea2bd459fee9c23cf5dcee9cda",
+          "start_byte": 11780,
+          "title": "Mark meaningful orchestration phases concisely",
+          "verification": {
+            "end_byte": 17995,
+            "sha256": "70e26c9354f7e14b573399c9aac1f21df8f729bde415f67f778d9ee0c2b9b5a4",
+            "start_byte": 17904
+          }
+        },
+        {
+          "activation": "Load when proposing caches, complex algorithms, specialized fast paths, or CPU, memory, database, or I/O optimization.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1210,
+          "context_dependencies": [
+            "SIM-PATH-001"
+          ],
+          "end_byte": 14275,
+          "id": "SIM-PERF-001",
+          "sha256": "dea253e49b700662d750b0b56e6f5ec9df4c1741db8ac1bc790e86d18f5c1f9d",
+          "start_byte": 13065,
+          "title": "Optimize demonstrated bottlenecks",
+          "verification": {
+            "end_byte": 18088,
+            "sha256": "628dd7fa90784ac5d03bc7b377afb522a3bf5c00130723c6d2f1451cae892e5f",
+            "start_byte": 17996
+          }
+        },
+        {
+          "activation": "Load when editing existing code or reviewing the scope and complexity of a proposed implementation.",
+          "automated_enforcement": "Advisory",
+          "automated_enforcement_source": "declared",
+          "block_bytes": 1130,
+          "context_dependencies": [
+            "SIM-SCOPE-001",
+            "SIM-ABSTRACT-001"
+          ],
+          "end_byte": 15405,
+          "id": "SIM-CHANGE-001",
+          "sha256": "925e104d514fabee8d8ecc044a65270750a99e6aa3a5e6266aba2fc069018f25",
+          "start_byte": 14275,
+          "title": "Make the smallest sufficient modification",
+          "verification": {
+            "end_byte": 18177,
+            "sha256": "e3ead82eb1bf3d6030414110808b11df96cd3118cb842cae72990b70745f915f",
+            "start_byte": 18089
+          }
+        }
+      ],
+      "requires": [],
+      "sections": [
+        {
+          "end_byte": 1074,
+          "name": "Purpose",
+          "sha256": "f92d38aba5a27302aa58d9b61140c6344d71b8e6f3357cd96e7b56e58a30d7cf",
+          "start_byte": 452
+        },
+        {
+          "end_byte": 2150,
+          "name": "Applicability",
+          "sha256": "aae4bb03f4094224e6df97f6f42a2138013bc66e1d5373ab788b76804e4bf548",
+          "start_byte": 1074
+        },
+        {
+          "end_byte": 2914,
+          "name": "Agent workflow",
+          "sha256": "2d684cb78822d984979c3e75be9fffa601b322fea183a84478463663c9fe609a",
+          "start_byte": 2150
+        },
+        {
+          "end_byte": 3685,
+          "name": "Terminology",
+          "sha256": "affb42f9560e90e9e6a164b39093a3bbddf333599ca313501d0ae42542b2286c",
+          "start_byte": 2914
+        },
+        {
+          "end_byte": 15405,
+          "name": "Requirements",
+          "sha256": "c801f6fdf2710376bd0dfb00b30864f01a48e597efc70cdf11dd5ab465325f27",
+          "start_byte": 3685
+        },
+        {
+          "end_byte": 16137,
+          "name": "Approved patterns",
+          "sha256": "5155acb50af8acbf33ea1e94a5104d58c5635108c0e0075f9f26874ab34a54fd",
+          "start_byte": 15405
+        },
+        {
+          "end_byte": 16802,
+          "name": "Rejected patterns",
+          "sha256": "6d3e72a40ce497f1ccd51bbda4a68502d242ff31263406dbaada31f2e5fee655",
+          "start_byte": 16137
+        },
+        {
+          "end_byte": 17243,
+          "name": "Exceptions",
+          "sha256": "fa2342000962eae18dcfb9a303219980707a698eea5f3d96319e3843815560e4",
+          "start_byte": 16802
+        },
+        {
+          "end_byte": 18179,
+          "name": "Verification",
+          "sha256": "92cc9b747240ea978c3aa68b9e213d1f82240577484904a65850f8dc33c5870f",
+          "start_byte": 17243
+        },
+        {
+          "end_byte": 18667,
+          "name": "Agent handoff",
+          "sha256": "a8ea2ae6c77c3918648025eeb6b6e5135f5c13af81a5bbeb811627c9b129fcca",
+          "start_byte": 18179
+        },
+        {
+          "end_byte": 19371,
+          "name": "Compatibility and migration",
+          "sha256": "f79b366291a87d3953affb92c0e9c15a51ff604f2c63e519526f013395a5fb1e",
+          "start_byte": 18667
+        },
+        {
+          "end_byte": 19779,
+          "name": "References",
+          "sha256": "cdbe89c3152239d994ceaeba85f0ef4a328df3139026baeb66f4f77d473e2b01",
+          "start_byte": 19371
+        }
+      ],
+      "sha256": "271be3ff8bd46a8fdac85da77337252766215cac2de5edcf7c9e09f5c4928a13",
+      "title": "Minimal Sufficient Implementation Complexity",
+      "version": "0.2.0"
+    }
+  ]
+}

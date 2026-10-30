@@ -1,0 +1,55 @@
+{
+  "catalog": {
+    "catalog_id": "io.github.xiaoweikin.engineering-specifications",
+    "catalog_version": "1.9.0",
+    "resolved_revision": "b0719f806615c0bb4f3d496931f14b6dc29df7e6",
+    "sha256": "58a29e2e6c7d0388511023adaaa18d38ca9aeef441ead935f4b4e3d3acd04285",
+    "source": {
+      "kind": "git",
+      "ref": "refs/tags/v1.9.0",
+      "url": "https://github.com/XiaoWeiKIN/EngineeringSpecifications.git"
+    }
+  },
+  "owner": "repo-foundry",
+  "specs": [
+    {
+      "applies_to": [
+        "**/*"
+      ],
+      "description": "Load when changing shared names, semantic verbs such as Normalize or Extract, cross-surface mappings, units, states, or naming compatibility",
+      "id": "core/semantic-naming",
+      "installed_path": "docs/agent-guides/managed/core/semantic-naming.md",
+      "requires": [],
+      "sha256": "b190713f27efc11eba59551d4026036d87f30027dd624b17e62d6627e5814c83",
+      "source_path": "specification/core/semantic-naming.md",
+      "version": "1.2.0"
+    },
+    {
+      "applies_to": [
+        "**/*"
+      ],
+      "description": "Load when consuming external data, parsing weak shapes, crossing trust boundaries, or gating effects",
+      "id": "core/data-boundaries",
+      "installed_path": "docs/agent-guides/managed/core/data-boundaries.md",
+      "requires": [
+        "core/semantic-naming"
+      ],
+      "sha256": "4a6a68d93110ff3853a825ec4ce78d1f8731bd1fe635b7aaa1eccb64a56819e9",
+      "source_path": "specification/core/data-boundaries.md",
+      "version": "0.2.1"
+    },
+    {
+      "applies_to": [
+        "**/*"
+      ],
+      "description": "Load when designing, implementing, refactoring, or reviewing code complexity, common paths, validation, abstractions, or performance",
+      "id": "core/implementation-simplicity",
+      "installed_path": "docs/agent-guides/managed/core/implementation-simplicity.md",
+      "requires": [],
+      "sha256": "271be3ff8bd46a8fdac85da77337252766215cac2de5edcf7c9e09f5c4928a13",
+      "source_path": "specification/core/implementation-simplicity.md",
+      "version": "0.2.0"
+    }
+  ],
+  "version": 1
+}
