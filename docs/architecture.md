@@ -243,6 +243,8 @@ Datafox 的服务逻辑身份采用 **`(tenant, service.namespace, service.name)
 
 **匹配范围与修改范围不同**：检查的上游 Pod CREATE Webhook Manifest 未限定 `namespaceSelector`/`objectSelector`，因此未 opt-in 的 Pod 仍可能经过 Webhook 请求，承担 Admission 延迟与超时；未 opt-in 只表示不应为业务容器增加 Agent 变更。生产安装前必须审查最终 Webhook 匹配规则、`timeoutSeconds`、失败策略和其他 Admission Webhook，并在测试集群对无注入 Pod 测量创建开销。可用范围限制方式必须以锁定的 Helm Chart/Kubernetes 版本为准，不直接手动改写共享 Operator 的受管理 Webhook。
 
+特别地，`failurePolicy: Ignore` 处理的是 Webhook 调用失败/失败响应；**已成功返回但包含非法 `env.valueFrom + value` 的 Patch** 仍可能在 Kubernetes Pod 校验阶段被拒绝，不能靠 fail-open 绕过。
+
 **Fail-open 也会使已 opt-in Pod 在 Webhook 失效时不带 Agent 启动**。这保护业务 Pod 创建，但破坏可观测性覆盖率。发布流水线应核对实际 Pod Spec 的预期 Init Container / 环境变量，以及 OTLP Resource；缺失时报告“未注入”，不把 Ready 当成注入成功。恢复动作采用受控新 Pod Rollout，不强制中断已有健康容器。
 
 但这不是跨所有 Helm/Operator 版本的无限承诺。真实集群必须检查 `MutatingWebhookConfiguration`、Namespace Selector、CABundle、超时及其他 Admission Webhook。`Instrumentation` CR 自身的验证 Webhook 可能配置为 `Fail`，不要把它与 Pod CREATE Webhook 混为一谈。
