@@ -1,0 +1,31 @@
+name: RepoFoundry Bootstrap Preview (temporary)
+on:
+  push:
+    branches:
+      - chore/initialize-repofoundry
+    paths:
+      - .github/workflows/repofoundry-bootstrap-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned RepoFoundry distribution
+        run: |
+          git clone --depth 1 --branch v0.15.1 https://github.com/XiaoWeiKIN/RepoHarnessKit.git /tmp/repofoundry
+      - name: Preview Harness and Engineering Specs
+        run: |
+          python3 --version
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . adapter list
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . bootstrap --adapter codex --adapter portable | tee bootstrap-preview.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: repofoundry-bootstrap-preview
+          path: bootstrap-preview.txt
+          if-no-files-found: ignore
