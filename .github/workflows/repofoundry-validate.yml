@@ -1,0 +1,30 @@
+name: RepoFoundry Harness Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch pinned RepoFoundry distribution
+        run: |
+          git clone --depth 1 --branch v0.15.1 https://github.com/XiaoWeiKIN/RepoHarnessKit.git /tmp/repofoundry
+          test "$(git -C /tmp/repofoundry rev-parse HEAD)" = "7a05228317618c4c87651f6a5e95dd7fa524609c"
+      - name: Validate Harness and adapters
+        run: |
+          set -euo pipefail
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . validate --harness
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . validate --adapter codex
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . validate --adapter portable
+      - name: Validate locked Engineering Specs
+        run: |
+          set -euo pipefail
+          python3 /tmp/repofoundry/scripts/foundryctl.py --repo . spec validate
