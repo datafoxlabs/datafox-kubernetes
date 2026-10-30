@@ -139,7 +139,7 @@ kubectl explain instrumentation.spec --recursive
 
 1. 渲染最终 Deployment / StatefulSet / DaemonSet / Job / CronJob 的 Pod Template；解析注入 Annotation 和 `instrumentation.opentelemetry.io/container-names`，定位真实目标容器。目标不明确或多种注入模式互斥时拒绝。
 2. 读取目标容器 `env[]`。拒绝 `OTEL_RESOURCE_ATTRIBUTES.valueFrom`，以及 Java `JAVA_TOOL_OPTIONS.valueFrom`。对 Node.js `NODE_OPTIONS`、Python `PYTHONPATH`、.NET startup hooks 等语言专有变量，依据**锁定的 Operator 版本源码**建立同样的受管理变量/冲突规则。
-3. 展开每一个 `envFrom` 的 ConfigMap/Secret **键名**（含 `prefix`），与该语言注入将设置的变量名求交集。无需打印 Secret 值。如果权限、引用或目标数据无法核验，拒绝 opt-in 发布；`envFrom` 其他不冲突的键可以继续使用。发布后变更引用数据应触发相同检查，不能把一次通过当成永久安全。
+3. 展开每一个 `envFrom` 的 ConfigMap/Secret **键名**（含 `prefix`），与该语言注入将设置的变量名求交集。无需打印 Secret 值。如果权限、引用或目标数据无法核验，拒绝 opt-in 发布；`envFrom` 其他不冲突的键可以继续使用。发布前应记录所验证 ConfigMap/Secret 的资源版本或不可变制品标识，并在部署前再次核对；若引用配置可在校验与 Pod 创建之间被修改且无法证明键名稳定，拒绝使用本次检查结果。发布后变更引用数据应触发相同检查，不能把一次通过当成永久安全。
 4. 检查标准 `service.name`、`service.namespace`、`service.version` 的最终来源、语义与发布事件契约一致性。配置非法时在**Pod CREATE 前**停止发布，不额外安装阻断集群创建的自定义 Admission Webhook。
 5. 即使静态校验通过，也必须在 Kind 中执行实际 Pod CREATE，比较 Mutated Pod Spec 和 OTLP Resource。业务 Secret 配置不得为迁就自动埋点而写入公开 Pod Label、Annotation 或 Git。
 
