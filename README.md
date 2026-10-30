@@ -1,15 +1,40 @@
 # Datafox Kubernetes Integration
 
-Datafox 的 Kubernetes 集成项目，面向 Java、Python、Node.js、.NET、Go 等 OpenTelemetry 应用。
+OpenTelemetry-based Kubernetes metadata and release integration for Datafox, designed for **Java, Python, Node.js, .NET, Go and SDK-instrumented services**.
 
-本项目采用 **OpenTelemetry Operator** 注入应用侧 Resource 与自动埋点配置，使用 **OpenTelemetry Collector** 补充基础设施元数据，发布事件由 CI/CD 主动上报 Datafox Backend。
+> **Status: architecture and implementation design only.** No Operator, Collector, Java image or Backend release API has been deployed or verified by this repository yet.
 
-## 工程原则
+## Architecture decisions
 
-- 运行时复用 OpenTelemetry 官方组件，不 Fork Operator 或 Collector。
-- 版本优先使用标准 Pod Label `app.kubernetes.io/version`，允许 `resource.opentelemetry.io/service.version` Annotation 和用户显式配置覆盖。
-- Collector 只补充 Kubernetes 基础设施属性，不改写 `service.name` 或 `service.version`。
-- 仅对显式选择的工作负载启用 Pod Mutation，并通过 Canary、回滚和失败注入验证业务安全。
-- 当前仓库处于设计阶段，不表示已完成部署、兼容性验证或正式发布。
+| Decision | Contract |
+| --- | --- |
+| Version source | Standard `app.kubernetes.io/version` Pod Label; `resource.opentelemetry.io/service.version` Annotation for override; explicit `OTEL_RESOURCE_ATTRIBUTES` wins |
+| Injection | Reuse OpenTelemetry Operator; opt-in per workload; no Datafox admission webhook |
+| Collector | Enrich Kubernetes infrastructure attributes; never rewrite `service.name` / `service.version` |
+| Release events | CI/CD actively reports deployment lifecycle to Datafox Backend |
 
-完整架构、部署步骤和验收规范将通过仓库文档评审逐步维护。
+## Documentation
+
+- **[Architecture and design decisions (中文)](docs/architecture.md)** — The problem, system roles, data flows, language integration, release identity, failure domains and upstream source evidence.
+- **[Implementation, rollout safety and verification (中文)](docs/implementation-and-verification.md)** — Operator Instrumentation, Collector configuration, Java image requirements, multi-language usage, CI/CD API, canary/rollback and 28 acceptance tests.
+
+### Recommended reading path
+
+1. Read the architecture to understand **why** service identity belongs to the SDK and Kubernetes topology belongs to Collector.
+2. Follow the implementation guide in a **disposable Kubernetes test cluster**, not in production.
+3. Lock actual Operator / Collector releases, verify the Pod mutation fail-open policy and test Java Agent startup.
+4. Complete the E2E matrix before expanding from canary to other production workloads.
+
+## Scope
+
+This repository will own Kubernetes manifests/Helm conventions, integration examples, packaging of a Datafox Java Agent injection image, validation tests and operational documentation. The Java runtime remains in `datafox-java-agent`. Datafox Backend owns the release event API and analytics.
+
+No custom Operator fork, Java Kubernetes detector, mandatory namespace-wide injection, privileged Go eBPF auto-instrumentation or automatic production rollout is part of v1.
+
+## Upstream
+
+- [OpenTelemetry Operator](https://github.com/open-telemetry/opentelemetry-operator)
+- [OpenTelemetry Collector Contrib / k8sattributes](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/k8sattributesprocessor)
+- [OpenTelemetry Java Instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
+
+See the documentation for **fixed upstream source snapshots** and unverified integration assumptions.
