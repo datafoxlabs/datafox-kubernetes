@@ -77,7 +77,8 @@ flowchart TB
     subgraph Runtime["业务运行与遥测数据面"]
         SDK["业务 Pod 内<br/>Language SDK / Agent"]
         Collector["OpenTelemetry Collector<br/>k8sattributes"]
-        API -->|"创建新 Pod"| SDK
+        API -->|"已准入的 PodSpec"| Kubelet["Kubelet / Pod Startup"]
+        Kubelet -->|"拉取镜像、Init、启动"| SDK
         SDK -->|"OTLP + SDK Resource"| Collector
         K8sMeta -->|"Watch / Cache"| Collector
     end
@@ -240,6 +241,7 @@ sequenceDiagram
     participant CI as CI/CD
     participant API as Kubernetes API Server
     participant OP as OTel Operator
+    participant Node as Kubelet
     participant App as order-service SDK
     participant COL as OTel Collector
     participant DF as Datafox Backend
@@ -253,7 +255,9 @@ sequenceDiagram
     else 未 opt-in 或 Webhook fail-open
         OP-->>API: 无注入变更或跳过失败 Webhook
     end
-    API-->>App: Pod 经校验后启动；SDK 初始化 Resource
+    API-->>Node: PodSpec 已准入、调度到 Node
+    Node->>App: 拉镜像、执行 Init Container、启动业务进程
+    App->>App: SDK 初始化 Resource
     COL->>API: 独立 Watch / Cache Pod 元数据
     App->>COL: OTLP（service.version=2.4.1）
     COL->>DF: OTLP（补充 k8s.*）
