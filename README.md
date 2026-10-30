@@ -8,7 +8,7 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 | Decision | Contract |
 | --- | --- |
-| Version source | Standard `app.kubernetes.io/version` Pod Label; `resource.opentelemetry.io/service.version` Annotation for override; explicit `OTEL_RESOURCE_ATTRIBUTES` wins |
+| Version source | Standard `app.kubernetes.io/version` Pod Label; `resource.opentelemetry.io/service.version` Annotation for override; explicit literal `OTEL_RESOURCE_ATTRIBUTES` takes precedence (subject to CI compatibility checks) |
 | Injection | Reuse OpenTelemetry Operator; opt-in per workload; no Datafox admission webhook |
 | Collector | Enrich Kubernetes infrastructure attributes; never rewrite `service.name` / `service.version` |
 | Release events | CI/CD actively reports deployment lifecycle to Datafox Backend |
@@ -16,7 +16,7 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 ## Documentation
 
 - **[Architecture and design decisions (中文)](docs/architecture.md)** — The problem, system roles, data flows, language integration, release identity, failure domains and upstream source evidence.
-- **[Implementation, rollout safety and verification (中文)](docs/implementation-and-verification.md)** — Operator Instrumentation, Collector configuration, Java image requirements, multi-language usage, CI/CD API, canary/rollback and 28 acceptance tests.
+- **[Implementation, rollout safety and verification (中文)](docs/implementation-and-verification.md)** — Operator Instrumentation, Collector configuration, Java image requirements, multi-language usage, CI/CD API, canary/rollback and 44 planned acceptance tests.
 
 ### Recommended reading path
 
@@ -30,6 +30,8 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 This repository will own Kubernetes manifests/Helm conventions, integration examples, packaging of a Datafox Java Agent injection image, validation tests and operational documentation. The Java runtime remains in `datafox-java-agent`. Datafox Backend owns the release event API and analytics.
 
 No custom Operator fork, Java Kubernetes detector, mandatory namespace-wide injection, privileged Go eBPF auto-instrumentation or automatic production rollout is part of v1.
+
+**Pre-deployment safeguards:** The planned CI gate rejects incompatible `OTEL_RESOURCE_ATTRIBUTES.valueFrom`, Java `JAVA_TOOL_OPTIONS.valueFrom`, unresolved or colliding `envFrom` keys in opted-in containers. The Pod Webhook can still match Pods without an injection annotation; admission match scope and fail-open observability coverage require separate validation. Neither safeguard has been implemented or tested yet.
 
 ## Upstream
 
