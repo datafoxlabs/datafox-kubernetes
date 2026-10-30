@@ -145,7 +145,7 @@ Operator 的“已有环境变量优先”规则仅能在其能识别并安全�
 | `envFrom` 的引用数据或键集合在发布前不可核验 | 不猜测安全；要求提供可核验键清单，或关闭注入 | CI 拒绝 opt-in 发布 |
 | Java `JAVA_TOOL_OPTIONS` 通过 `valueFrom` 提供 | 当前 Operator 不支持安全追加 Java Agent 启动参数 | CI 拒绝 Java opt-in 发布 |
 
-`envFrom` **本身并非全部禁止**：只要完整解析最终名称（含前缀）并证明不与目标语言的 Operator 注入变量冲突，就可保留。检查适用于真正被注入的容器，不影响未启用自动注入的 Pod。配置值如包含机密，不应为了通过校验而写入公开 Manifest；应调整配置所有权或退出自动注入模式。
+`envFrom` **本身并非全部禁止**：只要完整解析最终名称（含前缀）并证明不与目标语言的 Operator 注入变量冲突，就可保留。对于发布前可能发生变更的 ConfigMap/Secret，检查还应绑定所用配置版本，并在最终部署前重新核对；无法保障一致性时不允许以此前的检查结果放行。检查适用于真正被注入的容器，不影响未启用自动注入的 Pod。配置值如包含机密，不应为了通过校验而写入公开 Manifest；应调整配置所有权或退出自动注入模式。
 
 该兼容性限制来自已检查 Operator [`sdk.go`](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L502-L566) 对 `OTEL_RESOURCE_ATTRIBUTES` 的追加，以及 [`javaagent.go`](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/javaagent.go) 对 `JAVA_TOOL_OPTIONS` 的校验。Kubernetes [EnvVar 规则](https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/) 要求 `valueFrom` 不与非空 `value` 并存，显式 `env` 又优先于 `envFrom`。需要在锁定的 Operator 发行版上重新执行 Pod CREATE 负面测试。
 
