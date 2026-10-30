@@ -1,35 +1,30 @@
-# Project Documentation
+# Datafox Kubernetes — Documentation Map
 
-Status: bootstrap scaffold
-Last verified: unknown
+Status: architecture documented; implementation pending  
+Last reviewed: 2026-10-30
 
-<!-- BOOTSTRAP_TODO: Add project-specific sources of truth and owners. -->
+## Project knowledge
 
-## Start Here
+- [README](../README.md) — repository purpose and approved integration boundaries.
+- [Architecture Map](../ARCHITECTURE.md) — responsibilities, invariants, repository locations and implementation status.
+- [Kubernetes Metadata & Release Integration Design](architecture.md) — source-backed, multi-language architecture and four decisions.
+- [Implementation, Rollout Safety and Verification](implementation-and-verification.md) — reference configuration, installation gates, canary/rollback and 28 acceptance scenarios.
 
-- Agent guidance: use the installed adapter entrypoints recorded in
-  `docs/.engineering/harness.json`.
-- Architecture map: `ARCHITECTURE.md`
-- Project overview and development setup: `README.md`
+## RepoFoundry Engineering Lifecycle
 
-## Engineering Lifecycle
-
-- Research index: `docs/RESEARCH.md`
-- Architecture decision index: `docs/DECISIONS.md`
-- Design documents: `docs/design-docs/index.md`
-- Execution plan index: `docs/PLANS.md`
-- Bugfix index: `docs/BUGFIXES.md`
-- Technical debt: `docs/exec-plans/tech-debt-tracker.md`
+- [Agent guidance](../AGENTS.md) and [portable agent entry](agent-guides/README.md).
+- [Research](RESEARCH.md), [Decisions](DECISIONS.md), [Design Docs](design-docs/index.md).
+- [Execution Plans](PLANS.md), [Bugfixes](BUGFIXES.md), [Technical Debt](exec-plans/tech-debt-tracker.md).
 
 ## Engineering Controls
 
-- Quality score: `docs/QUALITY_SCORE.md`
-- Reliability: `docs/RELIABILITY.md`
-- Security: `docs/SECURITY.md`
+- [Quality Score](QUALITY_SCORE.md) — current assessment unknown until tests are run.
+- [Reliability](RELIABILITY.md) — operational requirements and evidence gaps.
+- [Security](SECURITY.md) — trust boundaries and controls to verify.
+- Managed Engineering Specs: [index](agent-guides/managed/index.md), manifest `docs/.engineering/specs.json` and lock `docs/.engineering/specs.lock.json`.
 
-## Documentation Rules
+## Maintaining this documentation
 
-- Keep decisions in ADRs and implementation detail in Design Docs.
-- Keep active implementation context self-contained in its ExecPlan.
-- Treat generated indexes as rebuildable projections.
-- Mark unknown facts explicitly; do not turn scaffolds into false sources of truth.
+The detailed architecture and implementation guide remain the source for the Kubernetes integration design. Update the map when implementation paths exist. Record durable decisions through the RepoFoundry decision workflow only with explicit owner approval. Never turn examples or planned test cases into claims of validated production behavior.
+
+Project-specific build commands, accountable owners, and production deployment policies remain **BOOTSTRAP_TODO** until established and verified.
