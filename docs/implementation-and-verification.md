@@ -417,6 +417,7 @@ Content-Type: application/json
 {
   "event_id": "dep-20261030-001:succeeded",
   "deployment_id": "dep-20261030-001",
+  "release_id": "build-order-2.4.1-a4f29c7",
   "event_type": "deployment.succeeded",
   "occurred_at": "2026-10-30T05:00:00Z",
   "service": {
@@ -448,6 +449,42 @@ Backend 需要：
 - `deployment.succeeded` 以发布系统观察到的 Rollout 完成条件为依据；
 - 发布事件缺失时不影响 Trace 接收，但部署时间与成功状态标记为未知。
 
+#### 5.2.1 发布事件幂等与状态转移合同
+
+CI/CD 产生并持久化稳定的 `release_id`（制品或构建身份）、`deployment_id`（**一次**部署身份）和 `event_id`（一次事件身份）。同一 Release 在不同环境、同一环境反复部署或回滚都生成**新的** `deployment_id`；`deployment_id` 与 `event_id` 的唯一性均处于租户作用域，不通过 Cluster/Namespace 的相同名称推断为同一次部署。
+
+| 当前汇总状态 | 收到事件 | 处理 | 结果 |
+| --- | --- | --- | --- |
+| 不存在 | `deployment.started` | 创建部署、保存不可变身份和事件 | `running` |
+| 不存在 | `deployment.succeeded` / `deployment.failed` | 允许乱序到达，先保存终态 | `succeeded` / `failed` |
+| `running` | `deployment.succeeded` / `deployment.failed` | 记录终态 | `succeeded` / `failed` |
+| `succeeded` / `failed` | 迟到的 `deployment.started` | 若身份一致且 `started.occurred_at <= terminal.occurred_at`，补记事件 | 终态**不变** |
+| `succeeded` / `failed` | 相同终态的不同 `event_id` | 不接受第二份不一致的终态证明 | `409 Conflict` |
+| `succeeded` / `failed` | 相反终态 | 拒绝，保留原终态 | `409 Conflict` |
+| 任意 | 已存在 `event_id` 且规范化载荷字节相同 | 幂等返回既有结果 | `200 OK` |
+| 任意 | 已存在 `event_id` 但载荷不同 | 拒绝，不产生写入副作用 | `409 Conflict` |
+| 任意 | 未知类型、错误身份、非法时间关系 | 拒绝，不产生写入副作用 | `422 Unprocessable Entity`（设计值） |
+
+`occurred_at` 来自授权发布系统，`received_at` 由 Backend 记录用于审计；不能仅依赖事件到达顺序覆盖状态。一个 `deployment_id` 的 Service、Release、Target、Image Digest 在首个成功保存的事件后不可变。未到齐的开始事件只意味着历史不完整，不允许将其补造成实际观测时间。
+
+**回滚语义**：恢复旧版本是**新的 Deployment**。其 `trigger="rollback"`、`rollback_of_deployment_id="<original-id>"`，仍按 `started → succeeded/failed` 上报；原 Deployment 的历史 `succeeded` / `failed` 不改写。可选 `deployment.rolled_back` 是对原部署“已完成回滚”的追加关系事件，必须引用成功的回滚 Deployment ID（`related_deployment_id`）；它不改变原部署终态。该关系事件先于被引用的成功事件抵达时可留待关联，但不得呈现为已核实的回滚成功。
+
+示例回滚 Deployment Event（示意增量字段，其余 `service`/`artifact`/`target` 仍必须完整）：
+
+~~~json
+{
+  "event_id": "dep-20261030-002:started",
+  "deployment_id": "dep-20261030-002",
+  "release_id": "build-order-2.4.0-9c1b",
+  "event_type": "deployment.started",
+  "trigger": "rollback",
+  "rollback_of_deployment_id": "dep-20261030-001",
+  "occurred_at": "2026-10-30T05:20:00Z"
+}
+~~~
+
+Datafox 预期行为通过契约测试验证，**目前不是已实现的 API 行为**。建议先实现最小状态机、幂等和冲突检查，再开发版本回归分析界面。
+
 发布事件不携带敏感环境变量、Token 或完整 Pod Spec。
 
 ## 6. 如何确认“没有影响业务”
@@ -463,9 +500,28 @@ kubectl get mutatingwebhookconfigurations -o yaml
 kubectl get validatingwebhookconfigurations -o yaml
 ~~~
 
-只确认与 Pod CREATE Mutation 相关的 Webhook 的 `failurePolicy`、`namespaceSelector`、`objectSelector`、`timeoutSeconds`、Webhook Service 可达性；不要把其他 CRD 验证 Webhook 的 `Fail` 误认成 Pod Admission 失败行为。
+确认与 Pod CREATE Mutation 相关的 Webhook 的 `failurePolicy`、`namespaceSelector`、`objectSelector`、`matchConditions`（适用时）、`timeoutSeconds`、Webhook Service 可达性；不要把其他 CRD 验证 Webhook 的 `Fail` 误认成 Pod Admission 失败行为。
 
 演练：暂时让测试环境 Webhook 不可用（仅有授权时操作），创建**未注入**及**显式启用注入**的测试 Pod，验证失败策略、Event、最终 Pod Spec。禁止在生产直接破坏 Webhook 以测试。
+
+#### 6.1.1 区分 Webhook 匹配范围与业务注入范围
+
+上游固定快照的 [Pod Webhook Manifest](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/config/webhook/manifests.yaml) 针对所有 Pod `CREATE` 声明规则，未给出缩小范围的 `namespaceSelector` 或 `objectSelector`。因此，没有注入 Annotation 的 Pod **仍可进入 API Server 的 Webhook 调用路径**；它只应免于业务容器 Mutation，不能推断 Admission 延迟为零。
+
+安装前必须通过最终渲染清单或集群实际对象检查：Webhook `namespaceSelector`、`objectSelector`、`matchConditions`（目标 Kubernetes 版本支持时）、`timeoutSeconds`、`failurePolicy`、Service 可达性及其他 Webhook 的叠加影响。范围收敛应优先采用**锁定的 Operator Helm Chart 支持的配置**；若现有共享 Operator 不允许收敛，保留原范围并作为可观测风险验收，不能直接手改由其管理的 Webhook。注意 `objectSelector` 匹配的是 Label，不能直接拿注入 Annotation 当选择器。
+
+测试集群创建两组对照 Pod（无注入 Annotation / 显式 opt-in），在 Webhook 正常与超时/不可用两种情况下分别记录 Pod CREATE 的 P95/P99、API Server Admission Event 与实际 Pod Spec。可接受阈值从业务发布 SLO 取得，未经测量不承诺“完全不影响业务”。
+
+#### 6.1.2 Fail-open 后的覆盖率与恢复
+
+| 场景 | 业务表现 | 可观测性风险 | Datafox 处理 |
+| --- | --- | --- | --- |
+| Webhook 不可达且 `failurePolicy=Ignore` | Pod 可能创建成功 | 本应注入的 Agent/SDK 配置缺失 | 标记“未注入”，保留业务运行 |
+| Webhook 正常但 `JAVA_TOOL_OPTIONS.valueFrom` 引起 Mutator 错误 | Pod 可能按原 Spec 启动 | Java Trace 不出现 | CI 先拒绝该输入，运行时检测缺失 |
+| Webhook Mutation 成功但 Agent Image 拉取失败 | Init Container 失败，业务未 Ready | 业务可用性受影响 | 暂停下一批部署，按 6.3 回滚 |
+| Collector 不可用 | 业务可能 Ready | 数据无法抵达后端 | 独立诊断 Exporter，不把缺数据等同于未注入 |
+
+覆盖率不能只通过业务 Ready 判定。对 opt-in 的实际新 Pod，检查**声明注入**与**最终 Pod Spec**是否一致（Init Container、Volume、Agent 启动环境或 SDK-only 变量），再以测试 OTLP Receiver 断言 Resource/Span。若期望注入缺失，发布流程应阻止继续扩大 Canary 并发出可诊断告警；健康 Pod 不因遥测缺失被杀死。恢复使用修复故障后的**受控新 Pod Rollout**，已有 Pod 不会在 Webhook 恢复后自动重新 Mutation。
 
 ### 6.2 Runtime 风险与 Canary
 
