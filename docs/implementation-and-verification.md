@@ -120,6 +120,60 @@ kubectl explain instrumentation.spec --recursive
 
 对于正式配置，至少还应设置安全传输、限制网络出口，禁止把认证 Token 放在公开的 Helm Values 或 Annotation 中。
 
+#### 3.1.1 自动注入前的环境变量安全边界
+
+此检查只针对启用 `instrumentation.opentelemetry.io/inject-*` 的**目标容器**，不应阻断未启用注入的业务 Pod。
+
+锁定快照的 Operator 在 [`sdk.go`](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L502-L566) 中仅在容器 `env[]` 中查找 `OTEL_RESOURCE_ATTRIBUTES`，并向同名变量的 `value` 追加 Resource；当原变量使用 `valueFrom` 时，新增非空 `value` 与 `valueFrom` 并存违反 Kubernetes [EnvVar 验证规则](https://github.com/kubernetes/kubernetes/blob/main/pkg/apis/core/validation/validation.go)。对于 `envFrom`，Operator 看不到引用数据的键，后续注入的显式 `env` 会优先于同名 `envFrom` 值（[Kubernetes Pod API](https://kubernetes.io/docs/reference/kubernetes-api/core/pod-v1/)）。
+
+| 最终 Pod Template 输入 | Datafox opt-in 兼容策略 | 失败结果 |
+| --- | --- | --- |
+| `env[].name=OTEL_RESOURCE_ATTRIBUTES`，普通 `value` | 允许；检查 Resource 格式、用户优先级与最终 OTLP | 非法配置在 CI 拒绝 |
+| `OTEL_RESOURCE_ATTRIBUTES` 通过 `valueFrom` | 不支持注入；先调整应用配置 | CI 必须拒绝 |
+| `envFrom` 中存在与 Operator 将注入的同名键 | 不支持；避免用户环境被遮蔽 | CI 必须拒绝 |
+| `envFrom` 引用无法核实完整键集合 | 不视为安全 | CI 必须拒绝 |
+| Java `JAVA_TOOL_OPTIONS` 普通字面量 `value` | 允许；Agent 参数追加后必须保留原值 | E2E 核验 |
+| Java `JAVA_TOOL_OPTIONS` 使用 `valueFrom` | 上游 `validateContainerEnv` 不支持 | CI 必须拒绝 |
+
+发布前检查流程：
+
+1. 渲染最终 Deployment / StatefulSet / DaemonSet / Job / CronJob 的 Pod Template；解析注入 Annotation 和 `instrumentation.opentelemetry.io/container-names`，定位真实目标容器。目标不明确或多种注入模式互斥时拒绝。
+2. 读取目标容器 `env[]`。拒绝 `OTEL_RESOURCE_ATTRIBUTES.valueFrom`，以及 Java `JAVA_TOOL_OPTIONS.valueFrom`。对 Node.js `NODE_OPTIONS`、Python `PYTHONPATH`、.NET startup hooks 等语言专有变量，依据**锁定的 Operator 版本源码**建立同样的受管理变量/冲突规则。
+3. 展开每一个 `envFrom` 的 ConfigMap/Secret **键名**（含 `prefix`），与该语言注入将设置的变量名求交集。无需打印 Secret 值。如果权限、引用或目标数据无法核验，拒绝 opt-in 发布；`envFrom` 其他不冲突的键可以继续使用。发布后变更引用数据应触发相同检查，不能把一次通过当成永久安全。
+4. 检查标准 `service.name`、`service.namespace`、`service.version` 的最终来源、语义与发布事件契约一致性。配置非法时在**Pod CREATE 前**停止发布，不额外安装阻断集群创建的自定义 Admission Webhook。
+5. 即使静态校验通过，也必须在 Kind 中执行实际 Pod CREATE，比较 Mutated Pod Spec 和 OTLP Resource。业务 Secret 配置不得为迁就自动埋点而写入公开 Pod Label、Annotation 或 Git。
+
+**负面样例**（这三段是互相独立的非法来源）：
+
+~~~yaml
+# A: 不能在原有 valueFrom 上追加非空 value
+env:
+  - name: OTEL_RESOURCE_ATTRIBUTES
+    valueFrom:
+      configMapKeyRef:
+        name: app-otel-config
+        key: resource-attributes
+~~~
+
+~~~yaml
+# B: 假设 app-otel-config 包含 OTEL_RESOURCE_ATTRIBUTES 键
+envFrom:
+  - configMapRef:
+      name: app-otel-config
+~~~
+
+~~~yaml
+# C: Java Agent 不能直接追加到这个来源
+env:
+  - name: JAVA_TOOL_OPTIONS
+    valueFrom:
+      secretKeyRef:
+        name: app-jvm-settings
+        key: java-options
+~~~
+
+上游 [`javaagent.go`](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/javaagent.go) 的 `validateContainerEnv` 会在 Java 启动选项使用 `valueFrom` 时返回错误；该版本 [Pod Mutation Webhook](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/webhook/podmutation/webhookhandler.go) 可能允许原 Pod 继续创建，因此业务 Ready 不能证明已注入 Agent。
+
 ### 3.2 Java 自定义 Operator 注入镜像
 
 参考 Operator 对应版本的 `autoinstrumentation/java/Dockerfile`，自定义 Datafox 镜像必须提供：
@@ -164,6 +218,8 @@ spec:
       annotations:
         instrumentation.opentelemetry.io/inject-java: "datafox"
         instrumentation.opentelemetry.io/container-names: "app"
+        resource.opentelemetry.io/service.name: "order-service"
+        resource.opentelemetry.io/service.namespace: "commerce"
     spec:
       containers:
         - name: app
@@ -179,6 +235,8 @@ spec:
 ~~~
 
 生产应用可有不同探针、端口和启动时间；这里的 Probe 是演示值。务必将 `instrumentation.opentelemetry.io/inject-java` 放在 **Pod Template metadata.annotations** 中，而不是仅放在 Deployment 顶层 metadata。
+
+**稳定服务身份**：Datafox 的逻辑服务键为 `(tenant, service.namespace, service.name)`；`deployment.environment.name`、`k8s.namespace.name`、Cluster 与 Deployment ID 为独立维度。若 staging/prod Kubernetes Namespace 不同而业务属于同一服务，应显式配置相同的 `service.namespace`。当 `app.kubernetes.io/instance` 与 `app.kubernetes.io/name` 不同时，必须明确 `service.name`，避免 Helm Release 名误当成服务名。CI/CD 发布事件中的 `service.namespace/name` 必须与 SDK Resource 一致，`target.namespace` 仍是实际 Kubernetes Namespace。
 
 版本覆盖例子：
 
@@ -227,7 +285,9 @@ kubectl -n commerce rollout status deployment/order-service
 ~~~
 
 验收时检查：
-- 未加注解的对照 Pod **不出现**额外 Init Container 或 Agent 环境变量；
+- 未加注解的对照 Pod **不出现**额外 Init Container 或 Agent 环境变量；还必须检查其是否进入 Pod Webhook 匹配范围以及创建延迟；
+- 普通 `OTEL_RESOURCE_ATTRIBUTES` 字面量不被改写；`valueFrom`、冲突或未知 `envFrom` 在 CI 阶段拒绝；
+- `JAVA_TOOL_OPTIONS` 字面量追加后原值保留；其 `valueFrom` 在 CI 阶段拒绝；
 - 加注解 Pod 只改变指定 `app` 容器，未误注入 Sidecar；
 - Java Pod 的 Init Container、Volume、`JAVA_TOOL_OPTIONS` 等符合所选 Operator 版本；
 - 实际 OTLP Resource 包含正确的 `service.version`，不能只看 Environment；
@@ -334,7 +394,8 @@ CI 对**最终渲染的 Pod Template** 做校验，不只检查 Helm Values 源�
 
 - 生产应用至少存在合法的 `service.version` 来源（显式环境、标准 Label 或 Resource Annotation）；
 - 版本不能为空、不能是 `latest`、`dev` 这种不可追溯占位值；
-- `service.name` 明确且不会因为 `app.kubernetes.io/instance` 等 Label 被意外替换；
+- `service.name` 与 `service.namespace` 的逻辑身份在跨环境/Helm Release 下保持稳定，且同发布事件一致；`instance/name` Labels 冲突而未显式设定身份时拒绝；
+- 对 opt-in 目标容器执行 **3.1.1 节** `env`、`envFrom`、`valueFrom` 与语言启动选项的兼容性检查；
 - Image Digest 与构建产物元数据已经保留；
 - 明确是否打开自动注入，且有对应受验证的 Operator/Instrumentation 版本；
 - Helm/Manifest 不重复设置不同语言注入 Annotation；
