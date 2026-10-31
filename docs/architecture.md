@@ -236,6 +236,17 @@ Backend 需要在租户范围内验证 `event_id` 幂等、`deployment_id` 稳�
 
 v1 的最小能力为**版本级查询 + 带环境/集群维度的候选部署关联**；严格的 Pod→Deployment 唯一归因属于后续可验证扩展。
 
+### 5.3 多租户、多地域、多单元是独立的部署拓扑
+
+Datafox 服务身份与物理部署、故障隔离和租户权限必须拆开：
+
+- **租户隔离**由 Backend 的认证租户上下文确定，不允许 SDK/Collector 传入的任意 Resource Attribute 改变存储分区或读取授权。
+- **部署位置**使用 OTel `cloud.region`、`cloud.availability_zone`（当前 Development）与 `k8s.cluster.uid`（Stable）等标准属性；不能把 `deployment.environment.name` 当作 Region。
+- **业务单元（Cell）**仅在实际存在多单元部署时使用候选的 Datafox `datafox.unit.id`；跨云/IDC 的逻辑地域确有需要时，才引入候选的 `datafox.region.id`。两者都不是 OTel 标准属性，不能由 Cluster/Namespace 名盲目推导。
+- **Release/Deployment 关系**：同一服务的相同版本在多个 Region/Cell 发布，是同一逻辑服务的多个 Deployment。每个发布单元有独立 Deployment ID；Backend 可按授权查询和地域/单元维度比较。
+
+单元可能覆盖多个 Cluster，一个 Cluster 也可能部署多个单元。Datafox 不能为了建立简单的树形目录强行把它们一对一映射。跨区域 Trace、物理与逻辑地域、业务租户和平台 Tenant 的区别及数据驻留边界见 [多租户、多地域、多单元部署模型](deployment-topology-and-isolation.md)。
+
 ## 6. 一次滚动发布如何贯穿三条路径
 
 下图使用 `order-service:2.4.0 → 2.4.1` 作为教学案例；它说明期望的因果次序，不保证所有上游实现都按图中单一时序串行执行。
