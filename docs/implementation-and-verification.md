@@ -403,6 +403,14 @@ CI 对**最终渲染的 Pod Template** 做校验，不只检查 Helm Values 源�
 
 不要新增阻断业务 Pod 创建的自定义 Validating Webhook。缺版本的部署在 CI 阶段失败，已有业务 Pod 不受影响。
 
+### 5.1.1 多地域与多单元发布目标校验
+
+数据模型和租户/地域/单元的定义由 [Deployment Topology & Isolation Model](deployment-topology-and-isolation.md) 持有。本手册仅规定后续 CI/CD 适配时的执行前提：已经启用单元部署的平台，应在发布前确认该次部署的**受信任目标**（逻辑/物理 Region、Unit、Cluster、Workload），并为每次独立 Rollout 分配独立 `deployment_id`。同版本跨多个 Cell 发布不是单个 Deployment 的多个事件。
+
+发布事件的 `target.region_id`、`target.unit_id` 为**拟议可选**字段；如果没有配置 Unit，不应为了满足示例虚构默认 Cell。所有 Event 的 Tenant Scope 必须由 API 接入认证决定，不能相信 Event Body 或 OTLP Resource 中自报的租户属性。跨 Region 数据驻留由接入/存储路由策略强制，不依赖易伪造的 `cloud.region`。
+
+`Topo-01..Topo-12` 为尚未执行的多租户权限、部署拓扑与发布相关合同测试，详见上述设计文档。本手册既有的 T01–T44 保持原编号、原验收含义不变。
+
 ### 5.2 Release 与 Deployment 事件
 
 建议后端接口（**设计契约，尚未实现**）：
