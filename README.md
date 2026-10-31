@@ -12,7 +12,7 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 | Decision | Contract |
 | --- | --- |
-| Version source | Standard `app.kubernetes.io/version` Pod Label; `resource.opentelemetry.io/service.version` Annotation for override; explicit literal `OTEL_RESOURCE_ATTRIBUTES` takes precedence (subject to CI compatibility checks) |
+| Version source | Standard Kubernetes app labels are **recommended defaults, not mandatory**. Existing enterprise/cloud labels may be mapped by deployment templates to OTel Resource annotations; explicit SDK/OTEL configuration remains supported and subject to injection compatibility checks |
 | Injection | Reuse OpenTelemetry Operator; opt-in per workload; no Datafox admission webhook |
 | Collector | Enrich Kubernetes infrastructure attributes; never rewrite `service.name` / `service.version` |
 | Release events | CI/CD actively reports deployment lifecycle to Datafox Backend |
