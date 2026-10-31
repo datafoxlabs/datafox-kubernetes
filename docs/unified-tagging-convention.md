@@ -30,7 +30,7 @@ Datadog 的统一服务标签使用 `env`、`service`、`version` 连接 APM、�
 
 Datafox 的**逻辑服务身份**是 `(tenant, service.namespace, service.name)`。`tenant` 由**已鉴权的接入与租户上下文**决定，**不是**允许调用者在 OTLP Resource 中自行声称的 `tenant` 属性。`deployment.environment.name` 和 `service.version` 分别是服务的部署维度与软件版本维度，不能作为“创建了一个新逻辑服务”的依据。
 
-OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` 一致；`service.namespace` 可为空但此时同名空间下必须避免服务名冲突。Datafox **生产接入规范**额外要求受管理业务服务显式提供稳定的 `service.namespace`，以避免多环境部署时的隐式 Kubernetes Namespace 推导。
+OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` 一致；`service.namespace` 可为空但此时同名空间下必须避免服务名冲突。Datafox **推荐**对需要跨 Namespace/环境关联的服务显式提供稳定的 `service.namespace`。对不需要逻辑命名空间的服务允许省略，并遵循 OTel 的原始含义；不能为了统一格式而虚构一个命名空间。
 
 **与 Datadog 的产品体验对齐，不代表与 Datadog 标签字面兼容。** Datafox 不自动把 `DD_ENV`、`DD_SERVICE` 或 `DD_VERSION` 解释成 OTel Resource。任何未来的 Datadog 迁移映射必须是独立、可测试的兼容性功能。
 
@@ -60,12 +60,12 @@ OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` �
 | OTel Attribute | Datafox 受管理生产服务 | 类型 | 权威来源 | 写入阶段与规则 |
 | --- | --- | --- | --- | --- |
 | `service.name` | **必需** | string | 应用显式配置；否则 Operator 解析 | SDK Resource；缺省 `unknown_service` 不满足 Datafox 生产契约 |
-| `service.namespace` | **必需** | string | 业务域 / 平台发布配置 | SDK Resource；**不能**无条件将 Kubernetes Namespace 当成长期逻辑身份 |
-| `deployment.environment.name` | **必需** | string | 部署环境配置 | SDK Resource；优先使用标准值 `development`、`test`、`staging`、`production` |
+| `service.namespace` | **推荐**；跨环境稳定服务身份时建议显式设置 | string | 业务域 / 平台配置；否则保留上游默认 | SDK Resource；**不能**无条件将 Kubernetes Namespace 当成长期逻辑身份 |
+| `deployment.environment.name` | **推荐**；部署环境比较/发布关联场景需要 | string | 部署平台 / 用户配置 | SDK Resource；环境值由企业定义，`development`、`test`、`staging`、`production` 仅为示例 |
 | `service.version` | **参与发布追踪时必需** | string | 构建/发布系统；用户显式配置可覆盖 | SDK Resource；必须稳定、可追溯、与发布事件一致 |
 | `service.instance.id` | **推荐** | string | SDK/Instrumentation | 运行实例身份；不得由无法区分容器的 Collector 盲目推导 |
 
-**作用域**：未集成 CI/CD Release Tracking 的本地开发应用可以省略 `service.version`，但此时产品不得虚构“已识别发布版本”。非 Kubernetes 服务使用同一套 Resource 字段，不要求凭空具备 `k8s.*`。
+**作用域**：Datafox 兼容普通 OTel 入口和受管理的 Release Tracking 两种模式。普通 OTel 遥测只要求能够可靠识别服务，允许 `service.namespace`、环境和版本缺失并保留“未知”状态；需要按环境分析或将 Trace 关联到发布事件时，对应维度必须在该功能入口满足契约。是否要求在 CI 中拒绝缺失值由**显式启用的受管理发布策略**决定，不得对所有 Kubernetes 应用无差别施加强制要求。非 Kubernetes 服务也使用同一套 Resource 字段，不要求具备 `k8s.*`。
 
 **实例唯一性**：`service.instance.id` 应满足 OTel 的实例唯一性约束，可能是 SDK 生成的 UUID 或稳定实例标识。不要把它与 `service.name` 组合生成新的业务服务，也不要在默认指标聚合中以其作为低基数维度。
 
@@ -91,26 +91,49 @@ OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` �
 
 OTel Registry 当前列出了 `deployment.id`、`deployment.name` 和 `deployment.status`，但这些字段在研究快照中是 **Development**。Datafox v1 保留发布 API 中独立的 `release_id`、`deployment_id` 和事件状态，不强制各语言 SDK 在 Resource 中携带这几个尚未稳定的部署字段。未来上游稳定且有明确关联需求时，再评估单向映射与版本迁移。[OTel Deployment Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/)。
 
-## 4. Kubernetes Label / Annotation → OTel Resource 映射
+## 4. Kubernetes 标签适配：推荐默认映射，不强制企业改名
 
-### 4.1 默认映射
+Kubernetes Label 的命名由业务团队、Helm Chart、GitOps 模板或云厂商各自管理。Datafox **只要求最终输出符合 OTel Resource 语义**，不要求用户的现有 Label 命名符合某个厂商/项目模板。下表是**上游 Operator 支持的推荐默认路径**，不是 Datafox 唯一接受的 Kubernetes 标签来源。
+
+### 4.1 推荐映射（可直接复用上游 Operator）
 
 | Kubernetes 输入（Pod Template） | OTel 目标 | Datafox 规则 |
 | --- | --- | --- |
 | `app.kubernetes.io/name` | `service.name` | **推荐业务名输入**；Operator 也会优先检查 `app.kubernetes.io/instance` |
 | `app.kubernetes.io/instance` | `service.name`（Operator 可能优先采用） | **仅表示应用安装实例**；如果它与业务服务名不同，必须提供显式 `service.name` |
-| `app.kubernetes.io/version` | `service.version` | 默认版本来源，要求符合 Kubernetes Label 格式 |
+| `app.kubernetes.io/version` | `service.version` | 推荐版本来源之一；使用时遵循 Kubernetes Label 格式 |
 | `resource.opentelemetry.io/service.name` | `service.name` | Helm Release 和业务服务名不一致时明确指定 |
-| `resource.opentelemetry.io/service.namespace` | `service.namespace` | 跨 Namespace 的业务域稳定标识 |
+| `resource.opentelemetry.io/service.namespace` | `service.namespace` | 需要跨 Namespace 统一逻辑服务身份时显式提供 |
 | `resource.opentelemetry.io/service.version` | `service.version` | 允许发布系统显式覆盖版本 Label |
-| `resource.opentelemetry.io/deployment.environment.name` | `deployment.environment.name` | **推荐环境映射**；不发明 `app.kubernetes.io/environment` 作为必需字段 |
+| `resource.opentelemetry.io/deployment.environment.name` | `deployment.environment.name` | 推荐环境来源；既有企业环境 Label 也可以在部署模板阶段适配，不要求重命名 |
 | Kubernetes API Pod/Owner 结构 | `k8s.*` | Collector 按基础设施对象补全，不作为业务身份映射 |
 
 官方 Kubernetes 推荐 Label 包含 `name`、`instance`、`version`、`part-of`、`component`、`managed-by`；本规范不默认将 `part-of` 映射成 `service.namespace`，因为“整个应用”和“业务命名空间”并不一定是同一个概念。Operator 在 `useLabelsForResourceAttributes: true` 时使用支持的 Label，并遵循其已知的 `instance → name` 顺序。[Kubernetes Recommended Labels](https://kubernetes.io/docs/concepts/overview/working-with-objects/common-labels/)、[OTel Kubernetes Resource 计算规则](https://opentelemetry.io/docs/specs/semconv/non-normative/k8s-attributes/)。
 
-**Label 值边界**：Kubernetes Label 值最多 63 字符，且不接受 `+` 等字符。因此 `service.version=2.4.1+build.17` 这样的合法应用版本**不能直接写成 Kubernetes Label 值**；应使用 `resource.opentelemetry.io/service.version` Annotation 或显式 SDK Resource。版本字符串不自动截断、去掉 `+` 或转换成另一种版本。OTel `service.version` 本身不强制 SemVer。[Kubernetes Label Syntax](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)。
+**Label 值边界**：采用 Label 路径时，Kubernetes Label 值最多 63 字符，且不接受 `+` 等字符。因此 `service.version=2.4.1+build.17` 这样的合法应用版本**不能直接写成 Kubernetes Label 值**；应使用 `resource.opentelemetry.io/service.version` Annotation 或显式 SDK Resource。版本字符串不自动截断、去掉 `+` 或转换成另一种版本。OTel `service.version` 本身不强制 SemVer。[Kubernetes Label Syntax](https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/)。
 
-### 4.2 推荐的 Pod Template
+### 4.2 企业自定义 Label / 云厂商标签的适配路径
+
+企业可能使用 `company.example.com/service`、`company.example.com/release`、`platform.example.com/environment`，或由云平台/Helm Chart 维护已有标签。以上键名只是**教学示例**，不代表任何云厂商的真实默认值。Datafox 不接管这些名称，也不要求替换它们。
+
+推荐按已有控制权选择最薄的适配方式：
+
+| 企业现状 | 适配位置 | Datafox 处理 |
+| --- | --- | --- |
+| 应用已通过 OTel SDK/Agent 显式设置 Resource | 应用初始化 / 现有 OTel 配置 | **直接接受**；不强制附加 Kubernetes Label |
+| 使用上游 `app.kubernetes.io/*` | Operator 原生映射 | 打开 Label 解析选项并验证最终 Resource |
+| 使用自定义公司/云厂商 Label，能够修改 Helm/Kustomize/GitOps 模板 | **部署模板适配层** | 保留原 Label，同时从企业来源取值生成 `resource.opentelemetry.io/*` Annotation 或标准 SDK 配置 |
+| 通过 CI/CD 已有构建元数据、无需从 Pod Label 读取 | 发布流水线/应用配置 | 直接生成 OTel Resource 的配置，避免制造重复标签 |
+| 仅想保留企业自定义基础设施标签供筛选 | Collector `k8sattributes.extract.labels` 白名单 | 映射到独立的基础设施/组织属性；不改写 `service.*` |
+| 完全不能修改业务 Manifest 或 SDK | 仅观察现有 OTLP 输出 | 可提供有限的自动推导与缺失提示；**不承诺**仅凭自定义 Label 就能自动注入正确应用身份 |
+
+在 OpenTelemetry Operator 的已检查实现中，`useLabelsForResourceAttributes` **不是任意 Label → Resource 的通用映射引擎**。它识别的标准键范围有限。自定义 Label 若要成为 `service.version` 等应用身份，优先在**Helm/CI/CD/GitOps 模板渲染阶段**转成受支持的 Resource Annotation，避免自建 Admission Webhook。[Operator 支持的映射](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
+
+Collector 官方提供 [`k8sattributes.extract.labels` 的定向提取](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/d63fa334e03aa36d0ac2cd29af05cc8f60d164fc/processor/k8sattributesprocessor/README.md)，但 Datafox 依然遵守 D3：**Collector 只补充基础设施与经允许的组织元数据，不承担应用服务名称/版本的覆盖职责。**
+
+**首期工程范围**：优先复用用户已有 OTel 配置和部署模板，不急于设计一套新的通用标签转换 DSL。若后续确实有跨多家企业、批量维护映射的业务需求，再评估在 Helm/CI/CD 层提供**可配置、可测试的 Mapping Profile**；它应是部署时转换，不是运行中的自定义 Webhook。
+
+### 4.3 推荐的 Pod Template
 
 下面只是属性来源示例，不是完整 Deployment 或已验证的 Operator 安装配置。
 
@@ -151,14 +174,16 @@ template:
 
 ### 5.2 Datafox 负责的冲突策略
 
+只有启用了受管理自动注入或 Release Tracking 的工作负载，才需要额外执行对应的发布前字段校验；普通 SDK 遥测接收不应因为未使用推荐 Kubernetes Label 而被拒绝。
+
 | 情况 | 处理 |
 | --- | --- |
 | 显式版本与 Annotation/Label 不同 | 按上游优先级保留显式值；CI 显示生效来源，不静默重写 |
 | Annotation 版本不同于 Label | 允许显式覆盖，但 Release Event 的版本必须与**最终生效值**一致 |
-| `service.name` 被 `app.kubernetes.io/instance` 误影响 | 发布前要求显式 `OTEL_SERVICE_NAME` / Annotation 或拒绝 |
-| 跨环境的 `service.namespace` 随 Kubernetes Namespace 变化 | 不自动合并；要求发布配置显式稳定身份 |
+| `service.name` 被 `app.kubernetes.io/instance` 误影响 | 若参与受管理发布追踪，要求显式确认业务服务名；普通接入可保留原值并显示可能的命名冲突 |
+| 跨环境的 `service.namespace` 随 Kubernetes Namespace 变化 | 不自动合并；需要跨环境统一逻辑服务时推荐显式稳定身份 |
 | `OTEL_RESOURCE_ATTRIBUTES.valueFrom` / `envFrom` 同名冲突 | 在**注入目标容器的 CI 发布前检查**中拒绝不兼容输入 |
-| 业务版本缺失 | 受管理生产发布阻止扩量；接收端不伪造 `service.version` |
+| 业务版本缺失 | 普通遥测允许缺失；启用受管理 Release Tracking 且要求版本关联时阻止发布扩量；接收端不伪造 `service.version` |
 | SDK Resource 与 CI Release Event 不一致 | 保存原始遥测，发布关联标记不一致，不覆盖原始 Resource |
 | Collector 无法识别 Pod | 保留已有遥测与 Service Resource；省略无法证实的基础设施属性 |
 | 新旧字段或不同 SemConv 版本冲突 | 保留原始输入并记录版本；只有经明确批准的迁移规则才可规范化 |
@@ -221,7 +246,7 @@ template:
 | --- | --- | --- |
 | Tag-01 | Java/Python/Node.js/.NET/Go 同一业务身份与版本 | 最终 OTLP Resource 的四个核心属性完全一致 |
 | Tag-02 | 跨 Namespace/Cluster 发布同一 Service | `service.namespace/name` 稳定，`k8s.*` 区分实际部署位置 |
-| Tag-03 | Helm `app.kubernetes.io/instance` ≠ 业务 `name` | 未明确服务名时 CI 拒绝；明确后不误命名 |
+| Tag-03 | Helm `app.kubernetes.io/instance` ≠ 业务 `name` | 受管理发布要求明确业务服务名；普通接入保留用户配置并提示歧义 |
 | Tag-04 | `2.4.1+build.17` | 使用 Annotation 传递完整值；非法 Label 不进入 Pod |
 | Tag-05 | 显式版本、Annotation、Label 三者冲突 | 用户显式值优先，发布事件一致 |
 | Tag-06 | `valueFrom` / 冲突 `envFrom` | 在自动注入发布前失败，不触发生产 Pod CREATE |
@@ -232,7 +257,19 @@ template:
 
 实施手册中既有 T01–T44 仍是 **实施验收清单**；本节 Tag-01–Tag-10 是跨仓库合同测试的语义索引，不应被记录为额外已经通过的测试。
 
-**前置的评审问题**：确认 Datafox 对生产受管理服务的四个核心字段的必需性、Service Namespace 的长期语义、版本字符串格式与 CI 事件的对应关系，以及历史/非 OTel 接入的兼容范围。完成规范评审后，再锁定 Operator/Collector 版本和开发注入配置。
+### 8.1 不同标签来源的兼容性案例
+
+| Case | 输入来源 | 需要检查的结果 |
+| --- | --- | --- |
+| Tag-11 | 自定义 `company.example.com/release` Label，经 Helm 模板映射到 Resource Annotation | 保留企业标签原值，最终 OTel `service.version` 等于目标制品版本 |
+| Tag-12 | 只提供显式 `OTEL_RESOURCE_ATTRIBUTES`，无任何推荐 Kubernetes Label | 正常进入 Datafox，SDK Resource 不被 Collector 改写 |
+| Tag-13 | 自定义基础设施 Label 仅通过 Collector 白名单提取 | 自定义属性可查询，但不覆盖业务 `service.*` |
+| Tag-14 | 无版本且未启用 Release Tracking 的普通 OTel 服务 | 遥测可接收，不被强制推断出发布版本 |
+| Tag-15 | 多容器 Pod 与企业自定义 Pod 级版本 Label | 不把一份 Pod Label 作为多个业务容器的不同应用版本 |
+
+这些仍是**拟定测试契约**；实施前需要根据实际 Helm/CI/CD 接入方式落地，不代表已有通用映射工具或已经完成 E2E。
+
+**前置的评审问题**：确定 Datafox 在受管理发布与普通 OTel 接入中的最小字段要求，以及哪些企业标签映射确有业务需要。Service Namespace 的长期语义、版本字符串格式、CI 事件来源和历史数据兼容性仍需逐项确认。完成规范评审后，再锁定 Operator/Collector 版本和开发注入配置。
 
 ## 参考资料与可信度
 
