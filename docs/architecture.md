@@ -5,6 +5,8 @@
 > **范围：** Kubernetes 中跨语言的应用身份注入、基础设施元数据补全和部署事件关联。  
 > **决策状态：** D1–D4 已在产品架构评审中确认；尚未注册为 RepoFoundry 正式 ADR，也未完成运行时验收。
 >
+> **标签语义与数据模型优先**：[Datafox Unified Tagging Convention](unified-tagging-convention.md) 是本方案待评审的跨语言字段契约。本文使用其中的字段来说明系统结构；在该规范被评审前，本架构仍不能作为已经批准的字段兼容性承诺。
+>
 > 本文描述目标系统的结构、依赖、接口和失败边界。**具体 YAML、构建命令、上线步骤、回滚操作与 44 项测试用例**由 [实施与验证手册](implementation-and-verification.md) 维护，避免两个文件重复保存操作细节。
 
 ## 1. 设计目标：让跨语言遥测具备统一的服务、运行位置和发布身份
@@ -117,6 +119,8 @@ flowchart LR
 这是**工程与运行时的依赖关系示意**，不表示三个代码仓库之间必须形成编译依赖。Datafox Kubernetes Integration 持有部署与集成配置；Java Agent 和 Backend 都维持各自的发布及兼容性边界。
 
 ## 3. 契约一：在 Pod 创建时确定应用身份
+
+本节聚焦 **Operator/SDK 的运行时职责**；属性名称、数据类型、Kubernetes Label/Annotation 映射、服务身份定义和跨信号规则的唯一维护位置为 [统一标签规范](unified-tagging-convention.md)。
 
 ### 3.1 版本来源与优先级
 
