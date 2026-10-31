@@ -124,7 +124,7 @@ flowchart LR
 
 ### 3.1 版本来源与优先级
 
-本设计保留四项已确认决策中的 **D1：标准 Pod Label + Annotation**。
+本设计保留 **D1：推荐使用标准 Pod Label + OTel Resource Annotation** 的架构决策。标准字段是默认接入路径，**不是强制的 Kubernetes 标签命名政策**。企业自定义 Label 可由已有 Helm、Kustomize 或 CI/CD 模板转换为标准 Resource Annotation；已显式提供 OTel SDK Resource 的应用不需要为 Datafox 添加重复 Label。[字段规范与适配路径](unified-tagging-convention.md)。
 
 | 层级 | 来源 | 作用 |
 | --- | --- | --- |
@@ -135,7 +135,7 @@ flowchart LR
 
 启用 `Instrumentation.spec.defaults.useLabelsForResourceAttributes` 才会采用相关标准 Label。上游 Operator 的 Resource 选择是**逐属性**处理；表格属于 Operator 注入阶段的规则，不能直接推断所有语言 SDK 内其他 Resource Detector 的合并顺序。[上游依据：Resource Attributes](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
 
-生产发布必须由 CI/CD 在**最终渲染的 Pod Template** 中验证稳定版本来源；缺失版本由 CI 拒绝，不另加阻断 Pod 创建的自定义 Webhook。Collector 不从 Image Tag 生成 `service.version`。
+**启用受管理 Release Tracking 的发布**必须由 CI/CD 在最终配置中验证稳定版本来源，可能来自标准 Label、自定义 Label 的部署时映射、OTel Annotation 或应用显式配置；缺失时按发布策略拒绝扩量。普通 OTel 遥测允许版本缺失并保留未知状态。Datafox 不另加阻断 Pod 创建的自定义 Webhook；Collector 不从 Image Tag 生成 `service.version`。
 
 ### 3.2 稳定服务身份不能依赖 Helm Release 名
 
@@ -143,7 +143,7 @@ Datafox Backend 的逻辑服务键定义为 **`(tenant, service.namespace, servi
 
 例如，一个 `order-service` 在 `commerce-staging` 和 `commerce-prod` 两个 Kubernetes Namespace 运行。如果希望跨环境查询同一业务服务，必须使两个应用的 `service.namespace=commerce`、`service.name=order-service` 保持一致。
 
-特别需要验证：Operator 支持从 `app.kubernetes.io/instance` / `app.kubernetes.io/name` 推导 `service.name`；前者可能是 Helm Release 名。两者不同且没有显式服务名时，Datafox 的发布预检必须拒绝不确定的身份映射。`service.namespace` 的上游缺省推导可以来自 Kubernetes Namespace，因此跨环境的逻辑命名空间应显式提供。[上游依据：Operator Resource Attributes](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
+特别需要验证：Operator 支持从 `app.kubernetes.io/instance` / `app.kubernetes.io/name` 推导 `service.name`；前者可能是 Helm Release 名。两者不同且没有显式服务名时，**受管理发布追踪**必须要求明确业务身份；普通遥测接入保留上游的实际值并报告命名歧义，而不是强制更改企业 Helm Label。`service.namespace` 的上游缺省推导可以来自 Kubernetes Namespace，因此跨环境的逻辑命名空间应显式提供。[上游依据：Operator Resource Attributes](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
 
 ### 3.3 多语言适配契约
 
