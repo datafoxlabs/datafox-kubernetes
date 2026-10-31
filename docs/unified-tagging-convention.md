@@ -255,7 +255,7 @@ template:
 | Tag-09 | Agent 发行版本升级 | `telemetry.distro.version` 变化不影响 `service.version` |
 | Tag-10 | Trace / Metric / Log / Node Metric | 应用信号身份一致；Node Metric 不被错误贴上单个服务版本 |
 
-实施手册中既有 T01–T44 仍是 **实施验收清单**；本节 Tag-01–Tag-10 是跨仓库合同测试的语义索引，不应被记录为额外已经通过的测试。
+实施手册中既有 T01–T44 仍是 **实施验收清单**；本节 Tag-01–Tag-15 是跨仓库合同测试的语义索引，不应被记录为额外已经通过的测试。
 
 ### 8.1 不同标签来源的兼容性案例
 
