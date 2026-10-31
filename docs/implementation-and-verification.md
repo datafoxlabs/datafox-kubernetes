@@ -403,13 +403,13 @@ CI 对**最终渲染的 Pod Template** 做校验，不只检查 Helm Values 源�
 
 不要新增阻断业务 Pod 创建的自定义 Validating Webhook。缺版本的部署在 CI 阶段失败，已有业务 Pod 不受影响。
 
-### 5.1.1 多地域与多单元发布目标校验
+### 5.1.1 标准地域与可选 Cell 发布目标校验
 
-数据模型和租户/地域/单元的定义由 [Deployment Topology & Isolation Model](deployment-topology-and-isolation.md) 持有。本手册仅规定后续 CI/CD 适配时的执行前提：已经启用单元部署的平台，应在发布前确认该次部署的**受信任目标**（逻辑/物理 Region、Unit、Cluster、Workload），并为每次独立 Rollout 分配独立 `deployment_id`。同版本跨多个 Cell 发布不是单个 Deployment 的多个事件。
+拓扑和租户契约由 [Deployment Topology & Isolation Model](deployment-topology-and-isolation.md) 持有。**P0** 校验接入的可信 Tenant、OTel 标准 Region/Cluster 属性及实际发布的 Cluster/Workload，不要求 `datafox.*` 属性。**P1 仅在工作负载已启用 Cell 时**，增加可选 `datafox.unit.id`，并确认它在 `(trusted_tenant_id, deployment.environment.name)` 范围内代表稳定且唯一的 Cell；该次发布的目标 Unit 与应用最终 Resource 应一致。每次独立 Rollout 都使用不同 `deployment_id`，同版本跨 Cell 发布不是一条 Deployment 的多次状态更新。
 
-发布事件的 `target.region_id`、`target.unit_id` 为**拟议可选**字段；如果没有配置 Unit，不应为了满足示例虚构默认 Cell。所有 Event 的 Tenant Scope 必须由 API 接入认证决定，不能相信 Event Body 或 OTLP Resource 中自报的租户属性。跨 Region 数据驻留由接入/存储路由策略强制，不依赖易伪造的 `cloud.region`。
+发布事件 **P1 可选字段**为 `target.unit_id`，不启用 Cell 时必须允许省略；**`target.region_id` 暂缓至 P2，不作为 v1 接口字段**。若需记录物理云 Region，复用云平台已有标准属性和真实集群/发布目标信息。Tenant 由 Release API 的认证上下文确定，不信任 Event Body 或 OTLP Resource 自报的租户。数据驻留由可信的接入/存储路由实施，不依赖用户可伪造的 `cloud.region`。
 
-`Topo-01..Topo-12` 为尚未执行的多租户权限、部署拓扑与发布相关合同测试，详见上述设计文档。本手册既有的 T01–T44 保持原编号、原验收含义不变。
+`Topo-01..Topo-12` 是待实现的拓扑与权限合同：P0 覆盖 Tenant/标准 Region，P1 在 Cell 功能启用时验证 Unit。现有 T01–T44 保持原编号和验收含义，不声称任一测试已经执行。
 
 ### 5.2 Release 与 Deployment 事件
 
