@@ -246,7 +246,7 @@ metadata:
     resource.opentelemetry.io/service.version: "2.4.1-hotfix.1"
 ~~~
 
-此 Annotation 同样必须位于 Pod Template；如果容器已显式设置 `OTEL_RESOURCE_ATTRIBUTES=service.version=...`，应验证用户版本优先保留。Operator 会尝试从镜像 Tag 兜底，但 Datafox 生产发布规则要求 CI 在部署前确认 Label/Annotation/显式版本的存在和合法性，**不能将镜像 Tag 兜底误称为生产发布契约**。
+此 Annotation 同样必须位于 Pod Template；如果容器已显式设置 `OTEL_RESOURCE_ATTRIBUTES=service.version=...`，应验证用户版本优先保留。企业自定义版本 Label 可以在 Helm/CI/CD/GitOps 模板阶段转成该 Resource Annotation，不要求重命名原 Label。Operator 会尝试从镜像 Tag 兜底，但**启用 Release Tracking 的受管理发布**应在部署前确认最终版本来源及合法性，不能把镜像 Tag 兜底直接视为可信发布契约。
 
 ### 3.4 多语言接入
 
@@ -392,9 +392,9 @@ CI 对**最终渲染的 Pod Template** 做校验，不只检查 Helm Values 源�
 
 建议校验：
 
-- 生产应用至少存在合法的 `service.version` 来源（显式环境、标准 Label 或 Resource Annotation）；
+- **参与 Datafox 受管理 Release Tracking 的生产应用**必须存在合法的 `service.version` 来源（已有 SDK 配置、显式环境、标准 Label、部署模板将企业 Label 映射成的 Resource Annotation 等）；普通 OTel 遥测接入不要求强制增加此版本或指定 Kubernetes Label；
 - 版本不能为空、不能是 `latest`、`dev` 这种不可追溯占位值；
-- `service.name` 与 `service.namespace` 的逻辑身份在跨环境/Helm Release 下保持稳定，且同发布事件一致；`instance/name` Labels 冲突而未显式设定身份时拒绝；
+- 需要跨环境合并为同一逻辑服务的发布必须保持 `service.namespace/name` 稳定，且与发布事件一致；受管理发布中的 `instance/name` 语义冲突需显式处理；普通遥测入口遵循 OTel 语义，不无条件强制提供 `service.namespace` 或修改 Helm Label；
 - 对 opt-in 目标容器执行 **3.1.1 节** `env`、`envFrom`、`valueFrom` 与语言启动选项的兼容性检查；
 - Image Digest 与构建产物元数据已经保留；
 - 明确是否打开自动注入，且有对应受验证的 Operator/Instrumentation 版本；
