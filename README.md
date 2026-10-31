@@ -10,7 +10,7 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 ## Tenancy, region, and cell topology
 
-**[Deployment Topology & Isolation Model (中文)](docs/deployment-topology-and-isolation.md)** defines authenticated Datafox tenant isolation, standard OTel cloud/cluster location fields, optional multi-cloud logical regions and business cells, and per-unit deployment tracking. Custom `datafox.region.id` / `datafox.unit.id` attributes are **proposals, not required OTel fields**.
+**[Deployment Topology & Isolation Model (中文)](docs/deployment-topology-and-isolation.md)** separates P0 authenticated tenant isolation and standard OTel cloud/cluster location from P1 optional business cells. The only proposed P1 custom Resource field is `datafox.unit.id`; the optional release-event field is `target.unit_id`. A logical `datafox.region.id` and Cell registry are **deferred to P2 pending real use cases**, not v1 requirements.
 
 ## Architecture decisions
 
