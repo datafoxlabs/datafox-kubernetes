@@ -8,6 +8,10 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 **[Datafox Unified Tagging Convention — OTel-first (中文)](docs/unified-tagging-convention.md)** defines service identity, environment, application version, Kubernetes metadata, cross-signal semantics, and release tagging. It is a **proposed contract**, not an approved ADR or implemented policy. Review it before treating the architecture/implementation examples as normative.
 
+## Tenancy, region, and cell topology
+
+**[Deployment Topology & Isolation Model (中文)](docs/deployment-topology-and-isolation.md)** defines authenticated Datafox tenant isolation, standard OTel cloud/cluster location fields, optional multi-cloud logical regions and business cells, and per-unit deployment tracking. Custom `datafox.region.id` / `datafox.unit.id` attributes are **proposals, not required OTel fields**.
+
 ## Architecture decisions
 
 | Decision | Contract |
