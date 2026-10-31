@@ -4,6 +4,10 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 > **Status: architecture and implementation design only.** No Operator, Collector, Java image or Backend release API has been deployed or verified by this repository yet.
 
+## Tagging standard — review this first
+
+**[Datafox Unified Tagging Convention — OTel-first (中文)](docs/unified-tagging-convention.md)** defines service identity, environment, application version, Kubernetes metadata, cross-signal semantics, and release tagging. It is a **proposed contract**, not an approved ADR or implemented policy. Review it before treating the architecture/implementation examples as normative.
+
 ## Architecture decisions
 
 | Decision | Contract |
