@@ -64,6 +64,8 @@ flowchart TB
 
 以上云属性的标准稳定性以本次审查的 OTel Semantic Conventions 快照为准，实施时必须固定目标 SemConv 版本。[Cloud 属性](https://opentelemetry.io/docs/specs/semconv/registry/attributes/cloud/)、[Kubernetes 属性](https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/)、[Service 属性](https://opentelemetry.io/docs/specs/semconv/registry/attributes/service/)。
 
+**默认兼容性**：普通单地域、非单元化服务不要求提供 `datafox.region.id` 或 `datafox.unit.id`。这两个可选属性只有在明确启用逻辑地域或 Cell 的部署/查询功能后才参与合同验证。
+
 **无云 Region 时不要编造 `cloud.region`。** 自建机房可选择提供 `datafox.region.id`；云环境也可以同时具有 `cloud.region` 和 `datafox.region.id`，两者分别表示**云厂商物理位置**和**企业自定义的逻辑地域**，不得自动假定相等。不要使用根 `geo.*` 属性来偷偷表示云资源位置或请求客户位置。
 
 ## 3. 单元（Cell）的严格语义与身份
