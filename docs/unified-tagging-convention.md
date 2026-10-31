@@ -17,7 +17,7 @@ review_after: 2027-01-31
 >
 > **影响范围：** Datafox Java Agent、其他语言 OTel SDK/Agent、Kubernetes Operator、Collector、APM Backend、Logs/Metrics 接入、CI/CD Release Tracking。
 >
-> **拓扑与安全补充：** 多租户、多地域、多单元的身份、来源、权限、发布模型和验收条件详见 [Deployment Topology & Isolation Model](deployment-topology-and-isolation.md)。本文件不以 `service.namespace` 代替租户或单元，也不宣称普通 OTel 属性可以承担租户授权。
+> **拓扑与安全补充：** [Deployment Topology & Isolation Model](deployment-topology-and-isolation.md) 按 P0（可信 Tenant 与标准 OTel Region/Cluster）→ P1（可选 `datafox.unit.id`）→ P2（按需研究逻辑 Region 和复杂拓扑）分阶段定义。Tenant 不由 Resource 决定，普通服务不要求 Cell。
 
 ## 1. 核心主张：用 OTel Resource 统一服务身份，用平台契约统一查询行为
 
@@ -100,12 +100,12 @@ OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` �
 | Environment | `deployment.environment.name` | Stable | 业务发布环境，不能拿来代表云地域 |
 | 云厂商/账号/Region/AZ | `cloud.provider`、`cloud.account.id`、`cloud.region`、`cloud.availability_zone` | OTel Development（当前快照） | 云资源位置；各厂商 Region 编码原样保留 |
 | K8s Cluster | `k8s.cluster.uid`、`k8s.cluster.name` | Stable | 物理集群；不是地域、不是单元 |
-| 跨云/IDC 逻辑地域 | `datafox.region.id`（提案） | **Datafox 自定义，非标准 OTel** | 只在明确需要企业逻辑地域时启用，不替换 `cloud.region` |
-| 业务隔离单元 / Cell | `datafox.unit.id`（提案） | **Datafox 自定义，非标准 OTel** | 部署与故障域；只有存在多单元业务需求才启用 |
+| 跨云/IDC 逻辑地域 | `datafox.region.id`（P2 候选，不属于 v1 正式合同） | **Datafox 自定义提议，非标准 OTel** | **当前暂缓**；P0/P1 使用原生 `cloud.region`，不要求额外逻辑地域目录 |
+| 业务隔离单元 / Cell | `datafox.unit.id`（P1 可选属性提案） | **Datafox 自定义，非标准 OTel** | 稳定的流量/故障隔离单元；启用时作为查询和部署目标，不要求所有 Agent 感知 |
 
 Datafox Platform Tenant 与**被观测应用的业务客户租户**是不同概念。后者可能随请求变化，不应在共享进程的全局 SDK Resource 中设置。Region/Cell 可以用于查询和发布定位，但输入的 Resource 值无权改变 Backend 的写入租户、读取权限或数据驻留路由。
 
-**逻辑服务身份**：`(trusted_tenant_id, service.namespace, service.name)`。**部署单元作用域**：`(trusted_tenant_id, environment, trusted_region_or_location, unit_id)`；同名 Unit 可以在不同环境、地域与租户出现，不能单凭 `unit_id` 全局聚合。普通单地域、无 Cell 的服务不要求提供 `datafox.*`。
+**逻辑服务身份**：`(trusted_tenant_id, service.namespace, service.name)`。P1 **Unit 身份作用域**为 `(trusted_tenant_id, deployment.environment.name, datafox.unit.id)`，单元化业务在该作用域内应保证 ID 唯一；不同的 Cell 若同名，应由部署系统明确提供不同 ID，不能强依赖 Region/Cluster 目录消歧。普通单地域、无 Cell 服务不要求提供任何 `datafox.*` 属性。
 
 准确的数据来源、Cell↔Cluster 多对多关系、发布事件扩展、跨区域 Trace 和权限合同见 [拓扑与隔离设计](deployment-topology-and-isolation.md)。
 
@@ -232,11 +232,11 @@ template:
 
 ### 6.2 多租户、地域与单元的查询层级
 
-Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service/Environment/Region/Unit 逐级筛选，最终下钻到 Cluster、Workload 和 Pod。**Region 和 Unit 是可选维度，不改变 Service 身份**。
+Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Environment、已有 `cloud.region`，以及可选 Unit 过滤，最终下钻到 Cluster、Workload 和 Pod。**Region 和 Unit 不改变 Service 身份，也无需强制构成一棵树**。P1 不引入逻辑 Region 注册中心。
 
-- 同一 `service.version` 可以部署在多个 `cloud.region`、`datafox.region.id`、`datafox.unit.id`；Release Tracking 必须保留各部署实例的独立 `deployment_id`。
+- 同一 `service.version` 可以部署在多个 `cloud.region` 和多个可选 `datafox.unit.id`；每次独立 Rollout 都必须保留自己的 `deployment_id`。
 - 同一 Trace 可以跨 Region 或 Unit，不能把全部 Span 强行归为单个 Cell。
-- `cloud.region` 表示云厂商原生地域；`datafox.region.id` 是 Datafox 可选逻辑地域，不能自动假定两者一对一。
+- `cloud.region` 表示云厂商原生地域；跨云逻辑 `datafox.region.id` 仅作为 P2 待评审扩展，**当前不要求注入、不索引、不作为发布关联前置条件**。
 - Datafox Backend 的 Tenant 过滤与数据驻留由鉴权与路由实现，**不得依赖**可伪造的 OTLP Resource 属性。
 
 完整的发布关联和安全边界见 [拓扑与隔离设计](deployment-topology-and-isolation.md)。
@@ -292,7 +292,7 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service/Envir
 
 ### 8.1 多租户、多地域、多单元合同测试
 
-新增的 **Topo-01–Topo-12** 作为拓扑隔离合同，覆盖不同 Tenant 同名服务、多云 Region、跨 Cluster Cell、跨 Cell 发布、缺失属性、非法租户声明、跨区域 Trace 与数据驻留。具体输入、预期结果和权限边界统一维护在 [拓扑与隔离设计](deployment-topology-and-isolation.md)，不复制为第二套独立权威测试表。
+**Topo-01–Topo-12** 分阶段作为拓扑合同：P0 检验租户隔离、标准云 Region、数据驻留；仅在启用 Cell 的 P1 运行单元关联、跨 Cell 发布与查询用例。复杂跨云逻辑地域目录不纳入 P0/P1。具体输入、预期结果和权限边界统一维护在 [拓扑与隔离设计](deployment-topology-and-isolation.md)，不复制为第二套独立权威测试表。
 
 ### 8.2 不同标签来源的兼容性案例
 
@@ -306,7 +306,7 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service/Envir
 
 这些仍是**拟定测试契约**；实施前需要根据实际 Helm/CI/CD 接入方式落地，不代表已有通用映射工具或已经完成 E2E。
 
-**前置的评审问题**：确定 Datafox 在受管理发布与普通 OTel 接入中的最小字段要求、多租户鉴权和数据驻留的真实部署方案、单元是否已属于当前产品范围，以及哪些企业标签映射确有业务需要。Service Namespace 的长期语义、版本字符串格式、CI 事件来源和历史数据兼容性仍需逐项确认。完成规范评审后，再锁定 Operator/Collector 版本和开发注入配置。
+**前置的评审问题**：确定 Datafox 在受管理发布与普通 OTel 接入中的最小字段要求、多租户鉴权和数据驻留的真实部署方案、P1 可选 Cell 的实际来源与应用范围，以及哪些企业标签映射确有业务需要。Service Namespace 的长期语义、版本字符串格式、CI 事件来源和历史数据兼容性仍需逐项确认。完成规范评审后，再锁定 Operator/Collector 版本和开发注入配置。
 
 ## 参考资料与可信度
 
