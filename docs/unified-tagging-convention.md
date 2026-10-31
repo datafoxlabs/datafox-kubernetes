@@ -16,6 +16,8 @@ review_after: 2027-01-31
 > **阅读顺序：** 先读本规范确定字段和数据所有权，再读 [系统架构](architecture.md) 理解注入/补全/关联，最后读 [实施与验证](implementation-and-verification.md) 的实际配置与测试。
 >
 > **影响范围：** Datafox Java Agent、其他语言 OTel SDK/Agent、Kubernetes Operator、Collector、APM Backend、Logs/Metrics 接入、CI/CD Release Tracking。
+>
+> **拓扑与安全补充：** 多租户、多地域、多单元的身份、来源、权限、发布模型和验收条件详见 [Deployment Topology & Isolation Model](deployment-topology-and-isolation.md)。本文件不以 `service.namespace` 代替租户或单元，也不宣称普通 OTel 属性可以承担租户授权。
 
 ## 1. 核心主张：用 OTel Resource 统一服务身份，用平台契约统一查询行为
 
@@ -87,7 +89,27 @@ OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` �
 
 **兼容性提示**：OTel 当前稳定字段为数组类型 `container.image.tags`；原项目实现手册中使用的 `container.image.tag` 必须在锁定 Collector 版本后明确兼容映射，不得假设两者是当前相同类型的字段。[OTel Container Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/container/)、[OTel Telemetry Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/telemetry/)、[OTel Kubernetes Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/)。
 
-### 3.3 暂不纳入 v1 必需 Resource 的字段
+### 3.3 多租户、多地域、多单元的字段分层
+
+这三类事实属于不同模型，不能使用单一的 Kubernetes Label 或 `service.namespace` 表示：
+
+| 分类 | 建议身份或 OTel 属性 | 是否为 OTel 标准 | 归属与约束 |
+| --- | --- | --- | --- |
+| Datafox 平台 Tenant | Backend 已鉴权的 `tenant_id`（内部） | **不是 OTel Resource** | Backend 接入认证与授权确定，不允许任意 SDK Resource 改写 |
+| 业务应用/服务 | `service.namespace` + `service.name` | Stable | 跨 Region、Cell 保持同一逻辑服务身份 |
+| Environment | `deployment.environment.name` | Stable | 业务发布环境，不能拿来代表云地域 |
+| 云厂商/账号/Region/AZ | `cloud.provider`、`cloud.account.id`、`cloud.region`、`cloud.availability_zone` | OTel Development（当前快照） | 云资源位置；各厂商 Region 编码原样保留 |
+| K8s Cluster | `k8s.cluster.uid`、`k8s.cluster.name` | Stable | 物理集群；不是地域、不是单元 |
+| 跨云/IDC 逻辑地域 | `datafox.region.id`（提案） | **Datafox 自定义，非标准 OTel** | 只在明确需要企业逻辑地域时启用，不替换 `cloud.region` |
+| 业务隔离单元 / Cell | `datafox.unit.id`（提案） | **Datafox 自定义，非标准 OTel** | 部署与故障域；只有存在多单元业务需求才启用 |
+
+Datafox Platform Tenant 与**被观测应用的业务客户租户**是不同概念。后者可能随请求变化，不应在共享进程的全局 SDK Resource 中设置。Region/Cell 可以用于查询和发布定位，但输入的 Resource 值无权改变 Backend 的写入租户、读取权限或数据驻留路由。
+
+**逻辑服务身份**：`(trusted_tenant_id, service.namespace, service.name)`。**部署单元作用域**：`(trusted_tenant_id, environment, trusted_region_or_location, unit_id)`；同名 Unit 可以在不同环境、地域与租户出现，不能单凭 `unit_id` 全局聚合。普通单地域、无 Cell 的服务不要求提供 `datafox.*`。
+
+准确的数据来源、Cell↔Cluster 多对多关系、发布事件扩展、跨区域 Trace 和权限合同见 [拓扑与隔离设计](deployment-topology-and-isolation.md)。
+
+### 3.4 暂不纳入 v1 必需 Resource 的字段
 
 OTel Registry 当前列出了 `deployment.id`、`deployment.name` 和 `deployment.status`，但这些字段在研究快照中是 **Development**。Datafox v1 保留发布 API 中独立的 `release_id`、`deployment_id` 和事件状态，不强制各语言 SDK 在 Resource 中携带这几个尚未稳定的部署字段。未来上游稳定且有明确关联需求时，再评估单向映射与版本迁移。[OTel Deployment Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/)。
 
@@ -208,7 +230,18 @@ template:
 
 注意 `service.version` 是软件版本，**不是** Deployment ID；同版本多次部署不应合并 Deployment 记录。OTel 尚未稳定的 `deployment.id` 不作为 v1 的跨语言强制字段。
 
-### 6.2 Traces、Metrics、Logs 的一致性不是盲目复制
+### 6.2 多租户、地域与单元的查询层级
+
+Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service/Environment/Region/Unit 逐级筛选，最终下钻到 Cluster、Workload 和 Pod。**Region 和 Unit 是可选维度，不改变 Service 身份**。
+
+- 同一 `service.version` 可以部署在多个 `cloud.region`、`datafox.region.id`、`datafox.unit.id`；Release Tracking 必须保留各部署实例的独立 `deployment_id`。
+- 同一 Trace 可以跨 Region 或 Unit，不能把全部 Span 强行归为单个 Cell。
+- `cloud.region` 表示云厂商原生地域；`datafox.region.id` 是 Datafox 可选逻辑地域，不能自动假定两者一对一。
+- Datafox Backend 的 Tenant 过滤与数据驻留由鉴权与路由实现，**不得依赖**可伪造的 OTLP Resource 属性。
+
+完整的发布关联和安全边界见 [拓扑与隔离设计](deployment-topology-and-isolation.md)。
+
+### 6.3 Traces、Metrics、Logs 的一致性不是盲目复制
 
 - **Traces**：优先使用 Resource 的服务与环境身份，不为每个 Span 重复写 `service.name`/`version`。
 - **Metrics**：保持 SDK Resource 与必要的数据点属性；查询引擎和存储需要明确维度预算。`k8s.pod.uid` / `service.instance.id` 高基数，禁止无差别作为每条派生指标的默认分组标签。
@@ -257,7 +290,11 @@ template:
 
 实施手册中既有 T01–T44 仍是 **实施验收清单**；本节 Tag-01–Tag-15 是跨仓库合同测试的语义索引，不应被记录为额外已经通过的测试。
 
-### 8.1 不同标签来源的兼容性案例
+### 8.1 多租户、多地域、多单元合同测试
+
+新增的 **Topo-01–Topo-12** 作为拓扑隔离合同，覆盖不同 Tenant 同名服务、多云 Region、跨 Cluster Cell、跨 Cell 发布、缺失属性、非法租户声明、跨区域 Trace 与数据驻留。具体输入、预期结果和权限边界统一维护在 [拓扑与隔离设计](deployment-topology-and-isolation.md)，不复制为第二套独立权威测试表。
+
+### 8.2 不同标签来源的兼容性案例
 
 | Case | 输入来源 | 需要检查的结果 |
 | --- | --- | --- |
@@ -269,7 +306,7 @@ template:
 
 这些仍是**拟定测试契约**；实施前需要根据实际 Helm/CI/CD 接入方式落地，不代表已有通用映射工具或已经完成 E2E。
 
-**前置的评审问题**：确定 Datafox 在受管理发布与普通 OTel 接入中的最小字段要求，以及哪些企业标签映射确有业务需要。Service Namespace 的长期语义、版本字符串格式、CI 事件来源和历史数据兼容性仍需逐项确认。完成规范评审后，再锁定 Operator/Collector 版本和开发注入配置。
+**前置的评审问题**：确定 Datafox 在受管理发布与普通 OTel 接入中的最小字段要求、多租户鉴权和数据驻留的真实部署方案、单元是否已属于当前产品范围，以及哪些企业标签映射确有业务需要。Service Namespace 的长期语义、版本字符串格式、CI 事件来源和历史数据兼容性仍需逐项确认。完成规范评审后，再锁定 Operator/Collector 版本和开发注入配置。
 
 ## 参考资料与可信度
 
