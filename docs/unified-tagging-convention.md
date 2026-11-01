@@ -113,6 +113,35 @@ Datafox Platform Tenant 与**被观测应用的业务客户租户**是不同概�
 
 OTel Registry 当前列出了 `deployment.id`、`deployment.name` 和 `deployment.status`，但这些字段在研究快照中是 **Development**。Datafox v1 保留发布 API 中独立的 `release_id`、`deployment_id` 和事件状态，不强制各语言 SDK 在 Resource 中携带这几个尚未稳定的部署字段。未来上游稳定且有明确关联需求时，再评估单向映射与版本迁移。[OTel Deployment Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/)。
 
+### 3.5 P0：实例身份、网络地址与 IP 的语义边界
+
+**实例 ID 是身份，IP 是可变化的网络位置。** Pod IP 可能随着 Pod 重建而改变或复用；多个容器/进程可能共用 Pod IP，代理、NAT 和 Host Network 也会使所见 IP 与实际应用不一致。Datafox 不增加 `datafox.instance.ip`、`instance.ip` 等重复的私有字段，也不以 `(service.name, IP)` 唯一标识实例。
+
+| 标准 Resource 属性 | 类型 / 当前稳定性 | 权威来源 | Datafox 规范 |
+| --- | --- | --- | --- |
+| `service.instance.id` | string / Stable | SDK / Instrumentation | **推荐**的服务实例 ID；须在相同服务的并存实例间唯一 |
+| `k8s.pod.uid` | string / Stable | Kubernetes Pod 元数据 | **优先关联键**；不能直接等同应用进程身份 |
+| `k8s.pod.ip` | string / Stable | Kubernetes `PodStatus.podIP` | **推荐补充** Pod 当前 IP；不当主键，不假定永不变化 |
+| `k8s.pod.name` / `k8s.namespace.name` | string / Stable | Kubernetes API | 可读定位；Pod Name 不能替代 UID |
+| `k8s.node.name` / `k8s.node.uid` | string / Stable | Kubernetes API | Node 关联；不把 Pod IP 当成 Node IP |
+| `k8s.container.name` / `container.id` | string / Stable | PodSpec / Container Runtime | 多容器区分，不能随机选取 Pod 中一个容器 |
+| `host.id` / `host.name` | string / Development | VM / 物理机 Host Resource | 非 Kubernetes/主机监控场景按需提供 |
+| `host.ip` | string[] / Development | Host 非回环接口 IP 集合 | **可选**主机地址数组，不是单值“实例 IP” |
+| `cloud.resource_id` | string / Development | 云平台原生实例/资源身份 | 云资源定位按需提供，不替代 `service.instance.id` |
+
+**唯一性不变量**：OTel 要求 `(service.namespace, service.name, service.instance.id)` 能唯一地区分并存服务实例。SDK 可使用 UUID；Collector 只有在明确知道实际实例时才能填充，不应根据 Pod Name/UID 机械生成 `service.instance.id`。一个 Pod 里存在多个业务进程或容器时，即使它们共享 `k8s.pod.uid` 和 `k8s.pod.ip`，仍可拥有不同的 `service.instance.id`。[OTel Service](https://opentelemetry.io/docs/specs/semconv/registry/attributes/service/)、[OTel K8s](https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/)、[OTel Host](https://opentelemetry.io/docs/specs/semconv/registry/attributes/host/)、[OTel Container](https://opentelemetry.io/docs/specs/semconv/registry/attributes/container/)。
+
+**网络连接属性与 Resource 不同**。`network.local.address` / `network.peer.address`、`server.address` / `server.port`、`client.address` 依赖**一次具体连接或请求**，属于相应 Span/网络事件上下文；它们不表示固定的服务实例 IP。`server.address` 可能是域名或网关地址，`client.address` 可能涉及个人隐私。`net.host.ip` 和 `net.peer.ip` 已 Deprecated，新埋点不再以其作为通用 Resource 字段。[Network Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/network/)、[Server Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/server/)、[Client Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/client/)。
+
+#### P0 采集与关联规则
+
+- **Kubernetes**：优先复用 Operator 和 Collector `k8sattributes`，通过 `k8s.pod.uid` 关联到 Pod，再补 `k8s.pod.ip` 与实际 Node/Workload 信息。只有 IP 时，必须结合可信 Cluster、观测时间及有效 Pod 生命周期；不得因同 IP 直接合并历史 Pod。
+- **VM/物理机**：保留应用已有 `service.instance.id`；主机网络排障可选用 `host.ip` 数组。应用进程或容器中看到的 Hostname、网卡地址不必等于 Node 的身份。
+- **双栈**：`k8s.pod.ip` 对应 `status.podIP`（单值）；不要把 `status.podIPs` 中的多个值连接为一个字符串，或假称它包含全部接口。
+- **HostNetwork/NAT/Service Mesh**：Collector 接收连接源 IP 可能来自 Gateway/Sidecar/Node；不能直接写入 `k8s.pod.ip`。
+- **缺失、历史与权限**：缺少 IP 时仍正常接入，不合成 `default`/`unknown` IP；IP 到实例的历史关系需保留观测时间，且不同 Tenant 不能因相同内网 IP 串数据。避免用高基数 IP/Pod UID 作为所有 Metric 的默认聚合维度。
+- **运行时开销**：不因这份规范增加 Datafox Java Agent 私有网络探测器、DNS 反查、周期性扫描网卡或应用高频路径的 Kubernetes API 调用。基础设施信息优先在已有 Operator/Collector 与部署平台收集。
+
 ## 4. Kubernetes 标签适配：推荐默认映射，不强制企业改名
 
 Kubernetes Label 的命名由业务团队、Helm Chart、GitOps 模板或云厂商各自管理。Datafox **只要求最终输出符合 OTel Resource 语义**，不要求用户的现有 Label 命名符合某个厂商/项目模板。下表是**上游 Operator 支持的推荐默认路径**，不是 Datafox 唯一接受的 Kubernetes 标签来源。
@@ -307,6 +336,21 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 这些仍是**拟定测试契约**；实施前需要根据实际 Helm/CI/CD 接入方式落地，不代表已有通用映射工具或已经完成 E2E。
 
 **前置的评审问题**：确定 Datafox 在受管理发布与普通 OTel 接入中的最小字段要求、多租户鉴权和数据驻留的真实部署方案、P1 可选 Cell 的实际来源与应用范围，以及哪些企业标签映射确有业务需要。Service Namespace 的长期语义、版本字符串格式、CI 事件来源和历史数据兼容性仍需逐项确认。完成规范评审后，再锁定 Operator/Collector 版本和开发注入配置。
+
+### 8.3 实例与 IP 合同测试
+
+| Case | 场景 | 预期 |
+| --- | --- | --- |
+| Inst-01 | 2 个业务 Worker 位于同一 Pod、共享 Pod IP | Pod UID/IP 可以相同，`service.instance.id` 能区分实际并存实例 |
+| Inst-02 | Pod 重建后 IP 被复用 | 不因同 IP 合并两个 Pod UID 或错误关联历史遥测 |
+| Inst-03 | HostNetwork、Sidecar 或 Gateway 转发 | 不把连接源 IP 直接写成 `k8s.pod.ip` |
+| Inst-04 | K8s Pod IP 缺失但 Pod UID 存在 | 保留实例身份与 Trace，不生成虚假 IP |
+| Inst-05 | 双栈 Pod 的 `status.podIPs` 有多个地址 | `k8s.pod.ip` 遵守单值来源，不能把数组序列化成字符串 |
+| Inst-06 | VM 多张网卡、IPv4 + IPv6 | `host.ip` 为合法 `string[]`，不误作 `k8s.pod.ip` |
+| Inst-07 | 带 `client.address` 的请求、NAT/代理连接 | 网络地址留在请求/连接上下文，遵守隐私与脱敏策略 |
+| Inst-08 | 两个 Tenant 使用相同 RFC1918 私网 IP | 不因 IP 复用导致跨租户实例/遥测关联 |
+
+以上为 **P0 字段与联调测试提案**，尚未执行，不增加 SDK 运行时 Detector。
 
 ## 参考资料与可信度
 
