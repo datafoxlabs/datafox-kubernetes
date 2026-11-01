@@ -384,6 +384,14 @@ service:
 
 当 Kubernetes API 不可访问或 Pod 元数据缓存缺失时，保留原始 OTLP Resource；**不反向修改服务版本**，也不根据碰巧相同的 IP 猜测已经删除的 Pod 身份。Collector 仍需独立验证自身排队和出口背压风险。
 
+### 4.3 实例身份与 Pod IP 的验收边界
+
+在最终 OTLP Resource 中，`service.instance.id`（若 SDK 提供）、`k8s.pod.uid`、`k8s.pod.ip` 是**不同的字段**，不可相互覆盖或推导。推荐使用 `k8s.pod.uid` 作为 Collector Pod Association 的首选；IP 回退须按真实 Cluster、Pod 生命周期和观察时间验证，不能因代理连接源 IP 相同就认定同一个业务 Pod。
+
+`k8s.pod.ip` 的权威输入为 Kubernetes `status.podIP`，应通过 Operator/Collector 已有机制及锁定版本实际配置验证支持；不能直接从 `host.ip`、`server.address`、`network.peer.address` 或 Collector 的 Gateway 连接 IP 推导。多容器、HostNetwork、双栈及 IP 复用必须按 [实例与 IP 规范](unified-tagging-convention.md) 的 Inst-01–Inst-08 用例开展独立合同测试。
+
+实例/网络元数据缺失时保留 SDK 原始 Resource，不制造 `datafox.instance.ip`，也不把 IP 地址引入所有高基数 Metrics 默认分组。**这些测试尚未执行**，不改变既有 T01–T44 的验收记录。
+
 ## 5. CI/CD：版本校验与主动事件上报
 
 ### 5.1 发布前校验契约
