@@ -392,6 +392,12 @@ service:
 
 实例/网络元数据缺失时保留 SDK 原始 Resource，不制造 `datafox.instance.ip`，也不把 IP 地址引入所有高基数 Metrics 默认分组。**这些测试尚未执行**，不改变既有 T01–T44 的验收记录。
 
+### 4.4 服务域名与 DNS 的验证边界
+
+Datafox **不将域名强制注入应用 Resource**。HTTP/gRPC 的逻辑服务目标应使用上游标准 `server.address` / `server.port`；URL 及 DNS 查询属性按实际请求/解析上下文采集。正常 Kubernetes Service DNS 与 Headless Service DNS 可能分别解析为 ClusterIP 或多个 Pod IP，不能把访问域名推导为固定 `k8s.pod.ip`。不要求所有业务统一域名命名，也不硬编码集群 DNS 域后缀。
+
+在 Kind/测试环境验证 [Unified Tagging Convention](unified-tagging-convention.md) 的 Domain-01–Domain-09 合同，包括代理/Ingress、Host Header 伪造、同名 DNS 跨 Tenant、敏感 `url.full`、无域名但只有 IP，以及 DNS 观察行为。**这些测试是后续 E2E 门禁提案，目前尚未执行**，不改变 T01–T44 的现有编号。
+
 ## 5. CI/CD：版本校验与主动事件上报
 
 ### 5.1 发布前校验契约
