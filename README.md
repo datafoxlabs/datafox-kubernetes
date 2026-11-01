@@ -8,7 +8,7 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 **[Datafox Unified Tagging Convention — OTel-first (中文)](docs/unified-tagging-convention.md)** defines service identity, environment, application version, Kubernetes metadata, cross-signal semantics, and release tagging. It is a **proposed contract**, not an approved ADR or implemented policy. Review it before treating the architecture/implementation examples as normative.
 
-The tagging convention also defines **service instance identity and network metadata**: `service.instance.id`, `k8s.pod.uid`, `k8s.pod.ip`, `host.ip`, and request-level network attributes. IP addresses are for locating an instance, not immutable instance IDs.
+The tagging convention also defines **service instance identity and network metadata**: `service.instance.id`, `k8s.pod.uid`, `k8s.pod.ip`, `host.ip`, and request-level network attributes. IP addresses are for locating an instance, not immutable instance IDs. The Operator-generated `service.instance.id` distinguishes Pod containers, but applications with multiple independent SDK processes in one container must provide their own unique IDs.
 
 The tagging convention also covers **service domains and DNS**: use standard request-level `server.address`, `url.full` and optional DNS attributes; do not turn URLs, Kubernetes Service DNS, or HTTP Host headers into permanent Service/Instance resource identity. Ingress/Gateway domain inventories are a separate, future product capability.
 
@@ -43,7 +43,7 @@ This repository will own Kubernetes manifests/Helm conventions, integration exam
 
 No custom Operator fork, Java Kubernetes detector, mandatory namespace-wide injection, privileged Go eBPF auto-instrumentation or automatic production rollout is part of v1.
 
-**Pre-deployment safeguards:** The planned CI gate rejects incompatible `OTEL_RESOURCE_ATTRIBUTES.valueFrom`, Java `JAVA_TOOL_OPTIONS.valueFrom`, unresolved or colliding `envFrom` keys in opted-in containers. The Pod Webhook can still match Pods without an injection annotation; admission match scope and fail-open observability coverage require separate validation. Neither safeguard has been implemented or tested yet.
+**Pre-deployment safeguards:** The planned CI gate rejects incompatible `OTEL_RESOURCE_ATTRIBUTES.valueFrom`, Java `JAVA_TOOL_OPTIONS.valueFrom`, unresolved or colliding `envFrom` keys in opted-in containers, and unresolved `OTEL_SERVICE_NAME` vs. `OTEL_RESOURCE_ATTRIBUTES.service.name` precedence conflicts (especially with Helm `app.kubernetes.io/instance`). The Pod Webhook can still match Pods without an injection annotation; admission match scope and fail-open observability coverage require separate validation. Collector Pod UID/IP association must also be limited to trusted, correctly scoped ingress; resource attributes alone are not authenticated identities. Connection-IP fallback is disabled in the illustrative Gateway configuration, and Pod IP extraction is explicitly configured. These contracts have not been implemented or tested yet.
 
 ## Upstream
 
