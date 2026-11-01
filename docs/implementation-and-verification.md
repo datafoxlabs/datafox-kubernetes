@@ -135,13 +135,15 @@ kubectl explain instrumentation.spec --recursive
 | Java `JAVA_TOOL_OPTIONS` 普通字面量 `value` | 允许；Agent 参数追加后必须保留原值 | E2E 核验 |
 | Java `JAVA_TOOL_OPTIONS` 使用 `valueFrom` | 上游 `validateContainerEnv` 不支持 | CI 必须拒绝 |
 
+**服务名的双变量优先级（固定 Operator 行为）**：即使目标容器已有 `OTEL_RESOURCE_ATTRIBUTES=service.name=order-service`，当 `env[]` 没有 `OTEL_SERVICE_NAME` 时，Operator 仍可能按 `app.kubernetes.io/instance` 注入 `OTEL_SERVICE_NAME=order-prod`。SDK 中后者优先，因此不能把“Resource 属性显式配置”理解为最终 `service.name` 必然保留。CI 必须联合解析 `OTEL_SERVICE_NAME`（含受支持的显式来源）、`OTEL_RESOURCE_ATTRIBUTES.service.name`、`resource.opentelemetry.io/service.name`、Pod Labels 与 Release Event；冲突时要求调用方显式设置一致的 `OTEL_SERVICE_NAME` 或 Pod Annotation，无法确认最终值则拒绝受管理发布。未知的 ConfigMap/Secret 值不允许被猜测，普通未注入遥测仍正常接收。[Operator sdk.go](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L495-L566)、[OTel SDK Resource](https://opentelemetry.io/docs/specs/otel/resource/sdk/)。
+
 发布前检查流程：
 
 1. 渲染最终 Deployment / StatefulSet / DaemonSet / Job / CronJob 的 Pod Template；解析注入 Annotation 和 `instrumentation.opentelemetry.io/container-names`，定位真实目标容器。目标不明确或多种注入模式互斥时拒绝。
 2. 读取目标容器 `env[]`。拒绝 `OTEL_RESOURCE_ATTRIBUTES.valueFrom`，以及 Java `JAVA_TOOL_OPTIONS.valueFrom`。对 Node.js `NODE_OPTIONS`、Python `PYTHONPATH`、.NET startup hooks 等语言专有变量，依据**锁定的 Operator 版本源码**建立同样的受管理变量/冲突规则。
 3. 展开每一个 `envFrom` 的 ConfigMap/Secret **键名**（含 `prefix`），与该语言注入将设置的变量名求交集。无需打印 Secret 值。如果权限、引用或目标数据无法核验，拒绝 opt-in 发布；`envFrom` 其他不冲突的键可以继续使用。发布前应记录所验证 ConfigMap/Secret 的资源版本或不可变制品标识，并在部署前再次核对；若引用配置可在校验与 Pod 创建之间被修改且无法证明键名稳定，拒绝使用本次检查结果。发布后变更引用数据应触发相同检查，不能把一次通过当成永久安全。
-4. 检查标准 `service.name`、`service.namespace`、`service.version` 的最终来源、语义与发布事件契约一致性。配置非法时在**Pod CREATE 前**停止发布，不额外安装阻断集群创建的自定义 Admission Webhook。
-5. 即使静态校验通过，也必须在 Kind 中执行实际 Pod CREATE，比较 Mutated Pod Spec 和 OTLP Resource。业务 Secret 配置不得为迁就自动埋点而写入公开 Pod Label、Annotation 或 Git。
+4. 检查 `OTEL_SERVICE_NAME` 与 `OTEL_RESOURCE_ATTRIBUTES.service.name` 在 Operator 注入后的**实际优先级**，并将最终 `service.name`、`service.namespace`、`service.version` 与发布事件对齐。特别验证 Helm `instance` 与业务名冲突时只设置 Resource 变量的失败情形。配置非法时在**Pod CREATE 前**停止发布，不额外安装阻断集群创建的自定义 Admission Webhook。
+5. 即使静态校验通过，也必须在 Kind 中执行实际 Pod CREATE，比较 Mutated Pod Spec、实际 `OTEL_SERVICE_NAME` 与 OTLP Resource。业务 Secret 配置不得为迁就自动埋点而写入公开 Pod Label、Annotation 或 Git。
 
 **负面样例**（这三段是互相独立的非法来源）：
 
@@ -171,6 +173,8 @@ env:
         name: app-jvm-settings
         key: java-options
 ~~~
+
+额外的**服务名冲突负面场景 D**：Pod Labels 为 `app.kubernetes.io/instance=order-prod` 和 `app.kubernetes.io/name=order-service`，容器仅有 `OTEL_RESOURCE_ATTRIBUTES=service.name=order-service`、没有 `OTEL_SERVICE_NAME` 或 Resource 服务名 Annotation。固定 Operator 会注入 `OTEL_SERVICE_NAME=order-prod`，SDK 输出可能与原意不同；受管理发布应由 CI 提前拒绝，修复后在 Kind E2E 验证服务名为 `order-service`。
 
 上游 [`javaagent.go`](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/javaagent.go) 的 `validateContainerEnv` 会在 Java 启动选项使用 `valueFrom` 时返回错误；该版本 [Pod Mutation Webhook](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/webhook/podmutation/webhookhandler.go) 可能允许原 Pod 继续创建，因此业务 Ready 不能证明已注入 Agent。
 
@@ -236,7 +240,7 @@ spec:
 
 生产应用可有不同探针、端口和启动时间；这里的 Probe 是演示值。务必将 `instrumentation.opentelemetry.io/inject-java` 放在 **Pod Template metadata.annotations** 中，而不是仅放在 Deployment 顶层 metadata。
 
-**稳定服务身份**：Datafox 的逻辑服务键为 `(tenant, service.namespace, service.name)`；`deployment.environment.name`、`k8s.namespace.name`、Cluster 与 Deployment ID 为独立维度。若 staging/prod Kubernetes Namespace 不同而业务属于同一服务，应显式配置相同的 `service.namespace`。当 `app.kubernetes.io/instance` 与 `app.kubernetes.io/name` 不同时，必须明确 `service.name`，避免 Helm Release 名误当成服务名。CI/CD 发布事件中的 `service.namespace/name` 必须与 SDK Resource 一致，`target.namespace` 仍是实际 Kubernetes Namespace。
+**稳定服务身份**：此例已通过 `resource.opentelemetry.io/service.name` 将服务名称与 Helm `instance` 解耦，避免 Operator 注入错误的 `OTEL_SERVICE_NAME`。仅在 `OTEL_RESOURCE_ATTRIBUTES` 中设置服务名不能保证同样效果。Datafox 的逻辑服务键为 `(tenant, service.namespace, service.name)`；`deployment.environment.name`、`k8s.namespace.name`、Cluster 与 Deployment ID 为独立维度。若 staging/prod Kubernetes Namespace 不同而业务属于同一服务，应显式配置相同的 `service.namespace`。当 `app.kubernetes.io/instance` 与 `app.kubernetes.io/name` 不同时，必须明确 `service.name`，避免 Helm Release 名误当成服务名。CI/CD 发布事件中的 `service.namespace/name` 必须与 SDK Resource 一致，`target.namespace` 仍是实际 Kubernetes Namespace。
 
 版本覆盖例子：
 
@@ -286,11 +290,11 @@ kubectl -n commerce rollout status deployment/order-service
 
 验收时检查：
 - 未加注解的对照 Pod **不出现**额外 Init Container 或 Agent 环境变量；还必须检查其是否进入 Pod Webhook 匹配范围以及创建延迟；
-- 普通 `OTEL_RESOURCE_ATTRIBUTES` 字面量不被改写；`valueFrom`、冲突或未知 `envFrom` 在 CI 阶段拒绝；
+- 普通 `OTEL_RESOURCE_ATTRIBUTES` 字面量**原有属性的语义和值保持有效**（Operator 可以追加新的 Resource 属性，不能要求原字符串字节不变）；`valueFrom`、冲突或未知 `envFrom` 在 CI 阶段拒绝；
 - `JAVA_TOOL_OPTIONS` 字面量追加后原值保留；其 `valueFrom` 在 CI 阶段拒绝；
 - 加注解 Pod 只改变指定 `app` 容器，未误注入 Sidecar；
 - Java Pod 的 Init Container、Volume、`JAVA_TOOL_OPTIONS` 等符合所选 Operator 版本；
-- 实际 OTLP Resource 包含正确的 `service.version`，不能只看 Environment；
+- 实际 OTLP Resource 包含正确的 `service.name` / `service.version`；额外检查 `OTEL_SERVICE_NAME` 与 Resource 变量冲突导致的名称覆盖，不能只看 Environment；
 - 各语言的业务探针、请求行为与未注入版本一致。
 
 ## 4. Collector：仅补基础设施属性
@@ -321,6 +325,7 @@ processors:
         - k8s.namespace.name
         - k8s.pod.name
         - k8s.pod.uid
+        - k8s.pod.ip
         - k8s.pod.start_time
         - k8s.deployment.name
         - k8s.replicaset.name
@@ -334,8 +339,9 @@ processors:
       - sources:
           - from: resource_attribute
             name: k8s.pod.ip
-      - sources:
-          - from: connection
+      # 仅受信任的同集群直连入口可按验证结果启用 connection 回退；共享 Gateway 默认不启用。
+      # - sources:
+      #     - from: connection
 
   resource/cluster:
     attributes:
@@ -361,7 +367,9 @@ service:
 
 `tls.insecure: true` 仅适用于受控测试集群。生产必须设置 TLS、认证、队列/重试策略、流量限制与安全出口。Metrics、Logs Pipeline 应按需要分别接入同类 `k8sattributes` 配置；不能只验证 Traces 就声称三个信号均完成。
 
-`k8sattributes` 通过 Pod UID、IP、Connection 的顺序关联。使用 Connection 的处理器必须置于 Batch/Tail Sampling 之前，因为后者会使原始连接上下文不可用。
+`k8sattributes` 按上述规则优先尝试 Pod UID、再尝试 Pod IP；**Connection fallback 在示例中默认关闭**，只有确定直接连接来源可信、没有代理且作用域受限时才可单独启用。若启用，处理器必须置于 Batch/Tail Sampling 之前，因为后者会移除原始连接上下文。`k8s.pod.ip` 已加入 `extract.metadata`，用于在可信 Pod 关联成功后按需补充 Pod IP；这与仅在 `pod_association` 中读取该属性是两种不同配置语义。
+
+**安全前置条件**：上述 OTLP Receiver 与 `tls.insecure` 仅是隔离测试示例，不允许把这个无鉴权入口原样暴露为跨租户、跨集群或公网 Gateway。Pod UID/IP 由客户端 Resource 自报时可伪造；共享入口必须先按可信接入凭据隔离 Tenant、Cluster 与采集路径，不能把自报 UID/IP 或多级 Collector 连接源 IP 作为鉴权/可信归属依据。认证或可信关联条件不成立时，保留原始 OTLP，禁止补上未经证实的其他 Pod 属性；由后续工程测试确认具体隔离配置。
 
 **禁止在 Datafox 配置中加入**：
 
@@ -382,11 +390,11 @@ service:
 
 单层 Gateway 能基于 Pod UID 正确关联时可先用 Gateway；如果流量经代理、NAT 或多个 Collector，推荐在靠近应用的数据入口完成 Pod 关联，再转发已带有 Pod UID/基础设施属性的 OTLP。
 
-当 Kubernetes API 不可访问或 Pod 元数据缓存缺失时，保留原始 OTLP Resource；**不反向修改服务版本**，也不根据碰巧相同的 IP 猜测已经删除的 Pod 身份。Collector 仍需独立验证自身排队和出口背压风险。
+当 Kubernetes API 不可访问、Pod 元数据缓存缺失或 Pod UID/IP 的接入信任未通过验证时，保留原始 OTLP Resource；**不反向修改服务版本**，也不根据碰巧相同的 IP 猜测已经删除的 Pod 身份。Collector 仍需独立验证自身排队和出口背压风险。
 
 ### 4.3 实例身份与 Pod IP 的验收边界
 
-在最终 OTLP Resource 中，`service.instance.id`（若 SDK 提供）、`k8s.pod.uid`、`k8s.pod.ip` 是**不同的字段**，不可相互覆盖或推导。推荐使用 `k8s.pod.uid` 作为 Collector Pod Association 的首选；IP 回退须按真实 Cluster、Pod 生命周期和观察时间验证，不能因代理连接源 IP 相同就认定同一个业务 Pod。
+在最终 OTLP Resource 中，`service.instance.id`（若 SDK 提供）、`k8s.pod.uid`、`k8s.pod.ip` 是**不同的字段**，不可相互覆盖或推导。推荐在**可信同集群入口**使用 `k8s.pod.uid` 作为 Collector Pod Association 的首选；自报 UID、IP 回退及连接 IP 不能绕过接入来源验证，必须考虑真实 Cluster、Pod 生命周期和观察时间，不能因代理连接源 IP 相同就认定同一个业务 Pod。`k8s.pod.ip` 若需要出现在最终 Resource 中，必须在锁定 Collector 版本验证 `extract.metadata` 显式包含该属性。
 
 `k8s.pod.ip` 的权威输入为 Kubernetes `status.podIP`，应通过 Operator/Collector 已有机制及锁定版本实际配置验证支持；不能直接从 `host.ip`、`server.address`、`network.peer.address` 或 Collector 的 Gateway 连接 IP 推导。多容器、HostNetwork、双栈及 IP 复用必须按 [实例与 IP 规范](unified-tagging-convention.md) 的 Inst-01–Inst-08 用例开展独立合同测试。
 
