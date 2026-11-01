@@ -192,6 +192,14 @@ Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Co
 
 字段类型、当前稳定性、多容器、双栈、代理、隐私和 8 项合同测试由 [Unified Tagging Convention 3.5 节](unified-tagging-convention.md) 统一定义。本架构不因此引入 Java Agent 自定义 IP Detector，也不要求每条 Span 附加 IP。
 
+### 4.3 服务访问域名与 Kubernetes Service DNS 不属于实例身份
+
+业务可通过公有域名、Ingress/Gateway、内部 Service DNS 或其他服务发现名称被访问。同一服务可能有多个域名，一个域名也可能路由到多个后端。因此业务请求中的 `server.address` / `server.port`、`url.full`、DNS 查询的 `dns.question.name` 不能直接作为 `service.name`、`service.instance.id` 或 Pod UID。
+
+**P0** 复用官方 HTTP/RPC Instrumentation 的标准 Span 属性，保留实际访问目标；Kubernetes Service DNS 使用现有集群域名，不能硬编码 `cluster.local`。当 API Gateway/Ingress 的 Host 头、转发头或 URL 不可信时，不能据此改变 Datafox 的服务所有权、Tenant 权限或后端发布关联。**P1+** 若需要“一个服务有哪些公网/内网域名”的资产目录，应由 Backend 根据有权限的路由/Service 对象建立显式的 Service Endpoint 关系，而非写入所有 SDK Resource。
+
+字段级稳定性、URL 脱敏、Kubernetes Service 与 Headless DNS 的边界，以及 Domain-01–Domain-09 合同测试由 [Unified Tagging Convention 第 3.6 节](unified-tagging-convention.md) 统一持有。v1 不增加专有域名 Detector 或反向 DNS 查询。
+
 ## 5. 契约三：Release Tracking 保存独立的部署事实
 
 本设计的 **D4** 要求 CI/CD 主动上报 Deployment Event。Backend 不从 Kubernetes Pod 创建时间或第一条 Span 推断真实发布开始与完成时间。
