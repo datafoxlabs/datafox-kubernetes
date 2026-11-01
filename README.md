@@ -10,6 +10,8 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 The tagging convention also defines **service instance identity and network metadata**: `service.instance.id`, `k8s.pod.uid`, `k8s.pod.ip`, `host.ip`, and request-level network attributes. IP addresses are for locating an instance, not immutable instance IDs.
 
+The tagging convention also covers **service domains and DNS**: use standard request-level `server.address`, `url.full` and optional DNS attributes; do not turn URLs, Kubernetes Service DNS, or HTTP Host headers into permanent Service/Instance resource identity. Ingress/Gateway domain inventories are a separate, future product capability.
+
 ## Tenancy, region, and cell topology
 
 **[Deployment Topology & Isolation Model (中文)](docs/deployment-topology-and-isolation.md)** separates P0 authenticated tenant isolation and standard OTel cloud/cluster location from P1 optional business cells. The only proposed P1 custom Resource field is `datafox.unit.id`; the optional release-event field is `target.unit_id`. A logical `datafox.region.id` and Cell registry are **deferred to P2 pending real use cases**, not v1 requirements.
