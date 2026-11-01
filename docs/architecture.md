@@ -184,6 +184,14 @@ Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Co
 
 这属于可选部署形态，v1 不强制引入第二层 Collector。是否采用 DaemonSet / Gateway 由实际网络与吞吐条件验证决定。Collector 的 Batch、Retry、Queue 和存储能力属于遥测可靠性设计，不应把“基础设施补全失败时保留原始遥测”理解成“Exporter 不会丢数据”。
 
+### 4.2 实例身份与网络地址的分工
+
+**服务实例不是 IP 地址。** 实例层应优先保留 SDK 提供的 `service.instance.id`；在 Kubernetes 中，`k8s.pod.uid` 是 Pod 的稳定关联键，`k8s.pod.ip` 只是该 Pod 的网络位置，`k8s.node.name` / `k8s.node.uid` 则表示所在 Node。一个 Pod 可以有多个业务进程/容器，因此 Pod UID 不应无条件转成 `service.instance.id`。
+
+对于 VM/物理机，按需使用 OTel `host.id` / `host.ip`（后者为 `string[]`）；针对某一次请求/连接的 `server.address`、`client.address`、`network.peer.address` 不应写成进程级 Resource。Kubernetes Pod IP 可以被回收复用，Backend 关联必须依赖 Pod UID、Cluster 和有效时间，而不是仅用 IP 拼接实例 ID。
+
+字段类型、当前稳定性、多容器、双栈、代理、隐私和 8 项合同测试由 [Unified Tagging Convention 3.5 节](unified-tagging-convention.md) 统一定义。本架构不因此引入 Java Agent 自定义 IP Detector，也不要求每条 Span 附加 IP。
+
 ## 5. 契约三：Release Tracking 保存独立的部署事实
 
 本设计的 **D4** 要求 CI/CD 主动上报 Deployment Event。Backend 不从 Kubernetes Pod 创建时间或第一条 Span 推断真实发布开始与完成时间。
