@@ -142,6 +142,36 @@ OTel Registry 当前列出了 `deployment.id`、`deployment.name` 和 `deploymen
 - **缺失、历史与权限**：缺少 IP 时仍正常接入，不合成 `default`/`unknown` IP；IP 到实例的历史关系需保留观测时间，且不同 Tenant 不能因相同内网 IP 串数据。避免用高基数 IP/Pod UID 作为所有 Metric 的默认聚合维度。
 - **运行时开销**：不因这份规范增加 Datafox Java Agent 私有网络探测器、DNS 反查、周期性扫描网卡或应用高频路径的 Kubernetes API 调用。基础设施信息优先在已有 Operator/Collector 与部署平台收集。
 
+### 3.6 P0：服务访问域名、Kubernetes DNS 与请求地址
+
+**域名属于访问入口或请求上下文，不天然属于一个服务实例。** 业务可以同时通过公网域名、内部 Kubernetes Service DNS、Ingress/Gateway 域名和服务发现名称访问；一个域名也可能由 Gateway 路由到多个逻辑服务。因此 `server.address`、`url.full`、`k8s.service.name` **不能取代** `service.name`、`service.namespace`、`service.instance.id` 或 `k8s.pod.uid`。P0 复用上游已有 HTTP/RPC 埋点，不增加 `datafox.service.domain`、`datafox.instance.domain` 等私有 Resource 字段。
+
+| 事实与场景 | OTel 属性 | 当前稳定性 | 位置与使用规范 |
+| --- | --- | --- | --- |
+| HTTP/RPC 调用的逻辑服务器域名或地址 | `server.address`、`server.port` | Stable | **Span/调用上下文**；优先使用已知主机名，只有 IP 时可保留 IP；禁止反向 DNS 查询来补域名 |
+| 请求完整 URL | `url.full` | Stable | Span；可能包含路径、查询参数和凭据，应执行敏感字段清理与访问控制 |
+| 从 URL 提取的域名 | `url.domain` | Development | 可选衍生查询维度，不成为 P0 必填字段；类型和上游版本须核验 |
+| DNS 查询名称 | `dns.question.name` | Development | **DNS 查询 Span/Metric 上下文**；仅在需要 DNS 诊断且有对应 Instrumentation 时启用 |
+| Kubernetes Service 对象 | `k8s.service.name`、`k8s.service.uid` | Development | Kubernetes 实体定位；不是实例的固定域名或业务 `service.name` |
+| 主机名称 | `host.name` | Development | **Host Resource**，表示主机名；不等同 HTTP Host、Service DNS 或应用逻辑服务名 |
+| HTTP 请求 Host 原始头 | `http.request.header.host` | Stable（通用 Header 模板） | **可选**的请求属性，类型 `string[]`；只在明确业务需求下采集，不默认保留所有请求 Header |
+
+HTTP 客户端调用 `https://order-service.commerce.svc.cluster.local:8443/api/orders` 时，可在相应 Span 上观察到 `server.address=order-service.commerce.svc.cluster.local` 和 `server.port=8443`；`service.name=order-service` 仍属于**应用自己的 Resource**。在服务端，`server.address` 可能按可信代理传递的 `Forwarded` / `X-Forwarded-Host`、HTTP/2 `:authority` 或 `Host` 得到，属于请求视角；未受信任客户端可操纵 Host 类 Header，Datafox 不应把它作为未经校验的权威资产目录、路由目标或权限依据。[OTel HTTP SemConv](https://opentelemetry.io/docs/specs/semconv/http/http-spans/)、[Server Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/server/)。
+
+#### Kubernetes Service DNS 与公网域名
+
+Kubernetes Service DNS 通常可采用 `<service>.<namespace>.svc.<cluster-domain>` 形式，实际 Cluster Domain **不保证**为 `cluster.local`。一个普通 Service DNS 可解析到 ClusterIP；Headless Service DNS 可解析到多个 Pod IP。Ingress、Gateway、企业内网 DNS 和公有域名与 Pod 的关系可能随路由配置变化。**不要仅从 Pod Name 或 Service 名拼接一个 FQDN 并写入所有业务进程的 Resource。** [Kubernetes DNS for Services and Pods](https://kubernetes.io/docs/concepts/services-networking/dns-pod-service/)。
+
+如果 Datafox 后续需要 **“服务访问域名 / Endpoint 清单”** 产品能力，应在 Backend 作为独立的、带来源和观察时间的 **Service Endpoint / Route 关联**，依据受信任的 Ingress/Gateway/Service 配置和实际路由关系建立。一个逻辑服务可以对应多个域名，一个域名可对应多个路由和后端；P0 **不建设**实时 DNS 探测器、域名注册中心或强制的单域名 Resource 属性。
+
+#### 安全、基数与采集成本
+
+- `url.full` 可能包含账号、Token、查询参数、用户输入或完整业务 ID。根据 OTel URL SemConv 清理敏感内容；默认查询与指标分组优先使用稳定、低基数的 `http.route`，不要以任意 URL/Host/DNS 查询值作为默认 Metric 标签。
+- DNS 查询名称可能包括内部服务信息或用户控制的任意域名。DNS 自动埋点属于**按需诊断**，不能为了补齐服务域名强制对每次连接发起 DNS 查询。
+- 多租户的公网域名可能相同，私有 DNS 名也可能在不同 Cluster 重复；域名、Host Header、URL 均不能决定 Datafox Tenant、数据驻留或实例身份。
+- 为了得到 `server.address` 不进行反向 DNS、网络扫描或高频缓存查询；优先复用上游 HTTP/RPC Instrumentation 已知的目标地址。代理后的真实目标只有明确可获知时才使用，不能依靠猜测。
+- 旧版 `http.host` / `http.server_name` 已弃用。新接入优先采用相应的 `server.address`，仅在有保留原始 Header 的明确需求时使用 `http.request.header.host`。[HTTP Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/http/)、[OTel URL Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/url/)、[DNS SemConv](https://opentelemetry.io/docs/specs/semconv/dns/dns-metrics/)。
+
 ## 4. Kubernetes 标签适配：推荐默认映射，不强制企业改名
 
 Kubernetes Label 的命名由业务团队、Helm Chart、GitOps 模板或云厂商各自管理。Datafox **只要求最终输出符合 OTel Resource 语义**，不要求用户的现有 Label 命名符合某个厂商/项目模板。下表是**上游 Operator 支持的推荐默认路径**，不是 Datafox 唯一接受的 Kubernetes 标签来源。
@@ -351,6 +381,22 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 | Inst-08 | 两个 Tenant 使用相同 RFC1918 私网 IP | 不因 IP 复用导致跨租户实例/遥测关联 |
 
 以上为 **P0 字段与联调测试提案**，尚未执行，不增加 SDK 运行时 Detector。
+
+### 8.4 域名、DNS 与 Endpoint 合同测试
+
+| Case | 场景 | 预期 |
+| --- | --- | --- |
+| Domain-01 | HTTP Client 调用 `order-service.commerce.svc.cluster.local` | Span 的 `server.address` 为已知目标域名；Resource 的 `service.name` 不变 |
+| Domain-02 | 公网域名经 Ingress / Gateway 到两个业务服务 | 不将域名直接当作唯一 Service ID，关联须有实际路由证据 |
+| Domain-03 | Headless Service 域名解析到多个 Pod | 不把一个 Service FQDN 错当成一个实例或一个 Pod IP |
+| Domain-04 | 仅得到目标 IP，没有 DNS 名 | `server.address` 可以是 IP，不强制反向 DNS 查询 |
+| Domain-05 | `url.full` 包含用户凭据或敏感查询参数 | 敏感内容按标准清理，不泄露到查询/日志 |
+| Domain-06 | DNS 查询有 `dns.question.name` | 只归属 DNS 查询上下文，不自动变成应用 Resource 域名 |
+| Domain-07 | 客户端伪造 HTTP Host / `X-Forwarded-Host` | 不据此覆盖业务 Service 身份或 Datafox 授权/资产所有权 |
+| Domain-08 | 不同 Tenant 或 Cluster 使用相同内部 DNS 名 | 不发生跨租户/跨集群误关联 |
+| Domain-09 | Kubernetes Cluster Domain 不是 `cluster.local` | 不硬编码构造 Service FQDN，保留真实访问名 |
+
+这些测试属于**拟定 P0 语义合同**。不代表已实现 DNS 探测、Ingress/Service 路由目录、HTTP Header 信任链验证或自动域名关联。
 
 ## 参考资料与可信度
 
