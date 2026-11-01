@@ -69,7 +69,7 @@ OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` �
 
 **作用域**：Datafox 兼容普通 OTel 入口和受管理的 Release Tracking 两种模式。普通 OTel 遥测只要求能够可靠识别服务，允许 `service.namespace`、环境和版本缺失并保留“未知”状态；需要按环境分析或将 Trace 关联到发布事件时，对应维度必须在该功能入口满足契约。是否要求在 CI 中拒绝缺失值由**显式启用的受管理发布策略**决定，不得对所有 Kubernetes 应用无差别施加强制要求。非 Kubernetes 服务也使用同一套 Resource 字段，不要求具备 `k8s.*`。
 
-**实例唯一性**：`service.instance.id` 应满足 OTel 的实例唯一性约束，可能是 SDK 生成的 UUID 或稳定实例标识。不要把它与 `service.name` 组合生成新的业务服务，也不要在默认指标聚合中以其作为低基数维度。
+**实例唯一性**：`service.instance.id` 应满足 OTel 的并存实例唯一性约束。锁定的 Operator 源码默认依据 Kubernetes Namespace、Pod Name 和 Container Name 生成实例标识；该值能够区分 Pod 中不同容器，**不能区分同一容器内多个独立 SDK 进程**。多进程场景必须由各进程的 SDK/启动配置提供真正不同的实例 ID，并核验最终 OTLP Resource；不能假设 Operator 自动解决此问题。不要把实例 ID 与 `service.name` 组合为新逻辑服务，也不要默认作为低基数指标维度。[固定 Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L719-L738)。
 
 ### 3.2 P0/P1：运行位置、制品与发行版
 
@@ -129,13 +129,13 @@ OTel Registry 当前列出了 `deployment.id`、`deployment.name` 和 `deploymen
 | `host.ip` | string[] / Development | Host 非回环接口 IP 集合 | **可选**主机地址数组，不是单值“实例 IP” |
 | `cloud.resource_id` | string / Development | 云平台原生实例/资源身份 | 云资源定位按需提供，不替代 `service.instance.id` |
 
-**唯一性不变量**：OTel 要求 `(service.namespace, service.name, service.instance.id)` 能唯一地区分并存服务实例。SDK 可使用 UUID；Collector 只有在明确知道实际实例时才能填充，不应根据 Pod Name/UID 机械生成 `service.instance.id`。一个 Pod 里存在多个业务进程或容器时，即使它们共享 `k8s.pod.uid` 和 `k8s.pod.ip`，仍可拥有不同的 `service.instance.id`。[OTel Service](https://opentelemetry.io/docs/specs/semconv/registry/attributes/service/)、[OTel K8s](https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/)、[OTel Host](https://opentelemetry.io/docs/specs/semconv/registry/attributes/host/)、[OTel Container](https://opentelemetry.io/docs/specs/semconv/registry/attributes/container/)。
+**唯一性不变量**：OTel 要求 `(service.namespace, service.name, service.instance.id)` 能唯一地区分并存服务实例。SDK 可以使用 UUID；Collector 只有在明确知道实际实例时才能填充，不应仅根据 Pod UID 或 IP 机械生成进程级 ID。Operator 的 Pod/Container 默认 ID 不是进程级唯一性保证：一个 Pod 中的不同容器通常可区分，而同一容器内的多个独立进程需要各自设置唯一值，并通过真实遥测校验。[OTel Service](https://opentelemetry.io/docs/specs/semconv/registry/attributes/service/)、[OTel K8s](https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/)、[OTel Host](https://opentelemetry.io/docs/specs/semconv/registry/attributes/host/)、[OTel Container](https://opentelemetry.io/docs/specs/semconv/registry/attributes/container/)。
 
 **网络连接属性与 Resource 不同**。`network.local.address` / `network.peer.address`、`server.address` / `server.port`、`client.address` 依赖**一次具体连接或请求**，属于相应 Span/网络事件上下文；它们不表示固定的服务实例 IP。`server.address` 可能是域名或网关地址，`client.address` 可能涉及个人隐私。`net.host.ip` 和 `net.peer.ip` 已 Deprecated，新埋点不再以其作为通用 Resource 字段。[Network Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/network/)、[Server Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/server/)、[Client Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/client/)。
 
 #### P0 采集与关联规则
 
-- **Kubernetes**：优先复用 Operator 和 Collector `k8sattributes`，通过 `k8s.pod.uid` 关联到 Pod，再补 `k8s.pod.ip` 与实际 Node/Workload 信息。只有 IP 时，必须结合可信 Cluster、观测时间及有效 Pod 生命周期；不得因同 IP 直接合并历史 Pod。
+- **Kubernetes**：优先复用 Operator 和 Collector `k8sattributes`，通过经过可信入口验证的 `k8s.pod.uid` 关联 Pod，再按需补 `k8s.pod.ip` 与实际 Node/Workload 信息。任意客户端可以伪造 OTLP Resource 的 Pod UID/IP，这两个字段**不是认证凭据**；共享/跨集群 Gateway 不得根据未认证的 UID 或代理连接 IP 做可信归属。只有 IP 时还必须考虑可信 Cluster、观测时间及 Pod 生命周期，不得因同 IP 合并历史 Pod。
 - **VM/物理机**：保留应用已有 `service.instance.id`；主机网络排障可选用 `host.ip` 数组。应用进程或容器中看到的 Hostname、网卡地址不必等于 Node 的身份。
 - **双栈**：`k8s.pod.ip` 对应 `status.podIP`（单值）；不要把 `status.podIPs` 中的多个值连接为一个字符串，或假称它包含全部接口。
 - **HostNetwork/NAT/Service Mesh**：Collector 接收连接源 IP 可能来自 Gateway/Sidecar/Node；不能直接写入 `k8s.pod.ip`。
@@ -245,13 +245,13 @@ template:
 
 由 Operator 负责将 Pod 元数据转换为标准 SDK 配置，采用以下决策顺序：
 
-1. 用户已有的 **可安全读取的显式** `OTEL_SERVICE_NAME` / `OTEL_RESOURCE_ATTRIBUTES`。
+1. 用户已有的 **可安全读取的显式**配置；其中 `OTEL_SERVICE_NAME` 在 SDK 对 `service.name` 的解析中优先于 `OTEL_RESOURCE_ATTRIBUTES` 里的同名属性。
 2. `resource.opentelemetry.io/*` Annotation。
 3. 开启 Label 提取后的标准 `app.kubernetes.io/*`。
 4. Operator 其他自动推导，**仅作为上游兼容行为**，不能代替 Datafox 的生产版本准入规则。
 5. Instrumentation CR 默认 Resource 属性。
 
-这一顺序属于 **Operator 注入配置规则**。SDK 最终 Resource 还可能合并用户代码创建的 Resource 和其他 Detector；因此每种语言必须用真实 OTLP 输出验证“最终值”，不只检测容器的环境变量。[Operator Resource Attributes（固定研究源码）](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)、[OTel Resource SDK](https://opentelemetry.io/docs/specs/otel/resource/sdk/)。
+上述顺序仅是**按具体属性理解的期望来源**，不能跨环境变量当成统一的覆盖算法。已检查 Operator 在 `env[]` 缺少 `OTEL_SERVICE_NAME` 时会**另行注入该变量**，即使 `OTEL_RESOURCE_ATTRIBUTES` 已设置 `service.name`；若 Pod Label 的 `app.kubernetes.io/instance=order-prod` 而显式 `OTEL_RESOURCE_ATTRIBUTES=service.name=order-service`，SDK 最终名称可能被注入的 `OTEL_SERVICE_NAME=order-prod` 覆盖。受管理注入须同时解析两种变量与 Annotation/Label：最小修正为显式设置一致的 `OTEL_SERVICE_NAME`，或在 Pod Template 加入一致的 `resource.opentelemetry.io/service.name`；无法确定最终一致性则在 CI 拒绝。SDK 最终 Resource 仍可能合并用户代码创建的 Resource 和其他 Detector，因此每种语言必须以真实 OTLP 验证，而不能只查环境变量。[Operator 固定源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L495-L566)、[OTel SDK Resource 规范](https://opentelemetry.io/docs/specs/otel/resource/sdk/)。[Operator Resource Attributes（固定研究源码）](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)、[OTel Resource SDK](https://opentelemetry.io/docs/specs/otel/resource/sdk/)。
 
 ### 5.2 Datafox 负责的冲突策略
 
@@ -259,9 +259,9 @@ template:
 
 | 情况 | 处理 |
 | --- | --- |
-| 显式版本与 Annotation/Label 不同 | 按上游优先级保留显式值；CI 显示生效来源，不静默重写 |
+| 显式版本与 Annotation/Label 不同 | 按锁定 SDK/Operator 的版本优先级验证并保留最终显式值；CI 显示生效来源，不静默重写 |
 | Annotation 版本不同于 Label | 允许显式覆盖，但 Release Event 的版本必须与**最终生效值**一致 |
-| `service.name` 被 `app.kubernetes.io/instance` 误影响 | 若参与受管理发布追踪，要求显式确认业务服务名；普通接入可保留原值并显示可能的命名冲突 |
+| `service.name` 被 `app.kubernetes.io/instance` 或注入的 `OTEL_SERVICE_NAME` 误影响 | 受管理注入须验证 `OTEL_SERVICE_NAME` 与 `OTEL_RESOURCE_ATTRIBUTES.service.name`、Annotation、Release Event 的**最终值**一致；普通接入可保留实际值并提示冲突 |
 | 跨环境的 `service.namespace` 随 Kubernetes Namespace 变化 | 不自动合并；需要跨环境统一逻辑服务时推荐显式稳定身份 |
 | `OTEL_RESOURCE_ATTRIBUTES.valueFrom` / `envFrom` 同名冲突 | 在**注入目标容器的 CI 发布前检查**中拒绝不兼容输入 |
 | 业务版本缺失 | 普通遥测允许缺失；启用受管理 Release Tracking 且要求版本关联时阻止发布扩量；接收端不伪造 `service.version` |
@@ -338,9 +338,9 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 | --- | --- | --- |
 | Tag-01 | Java/Python/Node.js/.NET/Go 同一业务身份与版本 | 最终 OTLP Resource 的四个核心属性完全一致 |
 | Tag-02 | 跨 Namespace/Cluster 发布同一 Service | `service.namespace/name` 稳定，`k8s.*` 区分实际部署位置 |
-| Tag-03 | Helm `app.kubernetes.io/instance` ≠ 业务 `name` | 受管理发布要求明确业务服务名；普通接入保留用户配置并提示歧义 |
+| Tag-03 | Helm `app.kubernetes.io/instance` ≠ 业务 `name`，同时只在 `OTEL_RESOURCE_ATTRIBUTES` 设置 `service.name` | 识别 Operator 注入 `OTEL_SERVICE_NAME` 的覆盖风险；受管理发布在 CI 拒绝或显式统一，E2E 验证最终服务名 |
 | Tag-04 | `2.4.1+build.17` | 使用 Annotation 传递完整值；非法 Label 不进入 Pod |
-| Tag-05 | 显式版本、Annotation、Label 三者冲突 | 用户显式值优先，发布事件一致 |
+| Tag-05 | 显式版本、Annotation、Label 三者冲突；独立检查 `OTEL_SERVICE_NAME` 与 Resource 中的 `service.name` 冲突 | 按各属性真实 SDK 优先级确认最终值，CI 与发布事件一致 |
 | Tag-06 | `valueFrom` / 冲突 `envFrom` | 在自动注入发布前失败，不触发生产 Pod CREATE |
 | Tag-07 | Collector 缺少 Pod 关联信息 | 不伪造或覆盖服务与 Pod 身份 |
 | Tag-08 | 同版本重复部署/回滚 | 一个 Service Version，多条独立 Deployment 记录 |
@@ -371,7 +371,7 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 
 | Case | 场景 | 预期 |
 | --- | --- | --- |
-| Inst-01 | 2 个业务 Worker 位于同一 Pod、共享 Pod IP | Pod UID/IP 可以相同，`service.instance.id` 能区分实际并存实例 |
+| Inst-01 | 两个业务 Worker 位于同一 Pod：先在不同容器，再在同一容器内作为独立进程 | Operator 默认容器级 ID 不保证同容器进程唯一；第二种必须由 SDK/进程显式提供不同 `service.instance.id`，E2E 检查输出 |
 | Inst-02 | Pod 重建后 IP 被复用 | 不因同 IP 合并两个 Pod UID 或错误关联历史遥测 |
 | Inst-03 | HostNetwork、Sidecar 或 Gateway 转发 | 不把连接源 IP 直接写成 `k8s.pod.ip` |
 | Inst-04 | K8s Pod IP 缺失但 Pod UID 存在 | 保留实例身份与 Trace，不生成虚假 IP |
