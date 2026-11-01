@@ -488,16 +488,21 @@ CI/CD 产生并持久化稳定的 `release_id`（制品或构建身份）、`dep
 | 不存在 | `deployment.started` | 创建部署、保存不可变身份和事件 | `running` |
 | 不存在 | `deployment.succeeded` / `deployment.failed` | 允许乱序到达，先保存终态 | `succeeded` / `failed` |
 | `running` | `deployment.succeeded` / `deployment.failed` | 记录终态 | `succeeded` / `failed` |
-| `succeeded` / `failed` | 迟到的 `deployment.started` | 若身份一致且 `started.occurred_at <= terminal.occurred_at`，补记事件 | 终态**不变** |
+| `running` | 不同 `event_id` 的第二个 `deployment.started` | 同一 Deployment 只能有一个开始事件；调用方重试须复用原 `event_id` | `409 Conflict` |
+| `succeeded` / `failed` | 迟到的首个 `deployment.started` | 仅当尚无开始事件、身份一致且 `started.occurred_at <= terminal.occurred_at` 时补记 | 终态**不变** |
+| `succeeded` / `failed` | 已有开始事件后再收到不同 `event_id` 的 `deployment.started` | 拒绝重复开始事实 | `409 Conflict` |
 | `succeeded` / `failed` | 相同终态的不同 `event_id` | 不接受第二份不一致的终态证明 | `409 Conflict` |
 | `succeeded` / `failed` | 相反终态 | 拒绝，保留原终态 | `409 Conflict` |
 | 任意 | 已存在 `event_id` 且解析后的完整事件字段相同（JSON 键顺序与空白不影响相等判断） | 幂等返回既有结果 | `200 OK` |
 | 任意 | 已存在 `event_id` 但载荷不同 | 拒绝，不产生写入副作用 | `409 Conflict` |
+| 任意 | `deployment.rolled_back` 关系事件 | 校验原 Deployment 与 `related_deployment_id` 均在授权 Tenant 内；仅被引用的新 Deployment 已成功时确认回滚关系，未完成时保留待核实关系，不改写原终态 | 原终态不变；不合法引用 `422` |
 | 任意 | 未知类型、错误身份、非法时间关系 | 拒绝，不产生写入副作用 | `422 Unprocessable Entity`（设计值） |
 
 `occurred_at` 来自授权发布系统，`received_at` 由 Backend 记录用于审计；不能仅依赖事件到达顺序覆盖状态。一个 `deployment_id` 的 Service、Release、Target、Image Digest 在首个成功保存的事件后不可变。未到齐的开始事件只意味着历史不完整，不允许将其补造成实际观测时间。
 
-**回滚语义**：恢复旧版本是**新的 Deployment**。其 `trigger="rollback"`、`rollback_of_deployment_id="<original-id>"`，仍按 `started → succeeded/failed` 上报；原 Deployment 的历史 `succeeded` / `failed` 不改写。可选 `deployment.rolled_back` 是对原部署“已完成回滚”的追加关系事件，必须引用成功的回滚 Deployment ID（`related_deployment_id`）；它不改变原部署终态。该关系事件先于被引用的成功事件抵达时可留待关联，但不得呈现为已核实的回滚成功。
+**API 版本演进**：`/api/v1/deployment-events` 以版本化的请求 Schema 作为契约。同一 v1 内新增字段必须向后兼容且可选，不能悄悄改变现有字段的类型、枚举或幂等比较语义；破坏性变化使用新的 API 版本并与旧 Adapter 并行验收。幂等比较以已接受的规范化事件载荷为准，不因 JSON 字段顺序和空白差异而改变结果。Schema 和未知字段处理策略在 Backend 实现前通过请求/响应样例与契约测试确定，本文不假称服务端已经支持。
+
+**回滚语义**：恢复旧版本是**新的 Deployment**。其 `trigger="rollback"`、`rollback_of_deployment_id="<original-id>"`，仍按 `started → succeeded/failed` 上报；原 Deployment 的历史 `succeeded` / `failed` 不改写。可选 `deployment.rolled_back` 是对原部署“已完成回滚”的追加关系事件，必须引用成功的回滚 Deployment ID（`related_deployment_id`）；它不改变原部署终态。该关系事件先于被引用的成功事件抵达时可留待关联，但不得呈现为已核实的回滚成功。重复 `deployment.rolled_back` 使用同一 `event_id` 执行通用幂等规则；不同事件引用不同回滚 Deployment 或更改原有不可变身份必须拒绝，避免形成两份相互矛盾的回滚证明。
 
 示例回滚 Deployment Event（示意增量字段，其余 `service`/`artifact`/`target` 仍必须完整）：
 
@@ -594,7 +599,7 @@ kubectl get validatingwebhookconfigurations -o yaml
 | T03 | Admission | Java 显式 opt-in | 仅目标容器被修改 | 待验证 |
 | T04 | Admission | Webhook 故障，`Ignore` | Pod 允许创建且留下可诊断事件 | 待验证 |
 | T05 | Admission | Pod Label 与 Annotation 冲突 | Annotation 版本生效 | 待验证 |
-| T06 | Admission | 显式 `OTEL_RESOURCE_ATTRIBUTES` | 显式版本保留 | 待验证 |
+| T06 | Admission | 显式 `OTEL_RESOURCE_ATTRIBUTES` 与 Operator 新增变量 | 显式版本在最终 OTLP 保留，允许 Operator 追加新属性；`service.name` 独立按 `OTEL_SERVICE_NAME` 优先级验收 | 待验证 |
 | T07 | Admission | 版本来源缺失 | **CI 拒绝**，不新增集群 Webhook | 待验证 |
 | T08 | Java | 自定义 Image 文件 / 权限 / Init | JAR 可复制，JVM 加载成功 | 待验证 |
 | T09 | Java | Spring Boot `build-info.properties` 冲突 | 最终版本符合显式策略 | 待验证 |
@@ -602,10 +607,10 @@ kubectl get validatingwebhookconfigurations -o yaml
 | T11 | Node.js | Auto Instrumentation | Trace Resource 含正确版本 | 待验证 |
 | T12 | .NET | Auto Instrumentation | Trace Resource 含正确版本 | 待验证 |
 | T13 | Go | SDK-only + `WithFromEnv` | SDK Resource 含正确版本 | 待验证 |
-| T14 | Collector | Pod UID / IP / Connection | 依优先级匹配到正确 Pod | 待验证 |
+| T14 | Collector | 可信同集群 Pod UID / IP；不可信 UID/IP 与代理 Connection | 可信输入匹配正确 Pod；伪造 UID/IP 或代理 IP 不得给出错误的可信 Pod 归属 | 待验证 |
 | T15 | Collector | 多容器 Pod | 不把其他容器 Image 关联到业务服务 | 待验证 |
 | T16 | Collector | 二级 Collector / Proxy | Pod UID 保留，最终身份不丢 | 待验证 |
-| T17 | Collector | K8s API 不可用 / Pod 消失 | 原始遥测可用，不错误关联 | 待验证 |
+| T17 | Collector | K8s API 不可用 / Pod 消失 / 跨 Cluster 相同内部 IP | 原始遥测可用；入口与 Cluster 可信边界不足时不错误关联 | 待验证 |
 | T18 | Collector | 属性覆盖检查 | `service.name` 和 `service.version` 未被改写 | 待验证 |
 | T19 | Signals | Traces、Metrics、Logs | 各已启用信号的资源符合契约 | 待验证 |
 | T20 | CI/CD | started → succeeded | Backend 保存一次 Deployment 和事件 | 待验证 |
@@ -617,7 +622,7 @@ kubectl get validatingwebhookconfigurations -o yaml
 | T26 | 安全 | 性能 / 压测 | 与基线对比满足明确 SLO | 待验证 |
 | T27 | 安全 | Webhook / Collector 升级 | 回归测试通过，业务 Pod 未被意外 Mutation | 待验证 |
 | T28 | 安全 | RBAC / 元数据选择 | 最小权限，不批量采集敏感 Labels/Annotations | 待验证 |
-| T29 | 注入配置 | `OTEL_RESOURCE_ATTRIBUTES` 普通字面量 | CI 接受，最终 SDK Resource 保留用户显式属性 | 待验证 |
+| T29 | 注入配置 | `OTEL_RESOURCE_ATTRIBUTES` 普通字面量 | CI 接受合法输入；Operator 可追加新属性，但不能改变用户原有属性的最终语义；服务名检查独立的 `OTEL_SERVICE_NAME` | 待验证 |
 | T30 | 注入配置 | `OTEL_RESOURCE_ATTRIBUTES.valueFrom.configMapKeyRef` | CI 拒绝，不创建生产 Pod；隔离测试重现上游失败路径 | 待验证 |
 | T31 | 注入配置 | `OTEL_RESOURCE_ATTRIBUTES.valueFrom.secretKeyRef` | CI 拒绝，不泄露 Secret 值，隔离测试检查 Pod CREATE | 待验证 |
 | T32 | 注入配置 | `envFrom` 包含 `OTEL_RESOURCE_ATTRIBUTES` 等同名键 | CI 拒绝，不允许用户来源被静默遮蔽 | 待验证 |
@@ -627,12 +632,12 @@ kubectl get validatingwebhookconfigurations -o yaml
 | T36 | 多语言 | `NODE_OPTIONS` / `PYTHONPATH` / .NET 启动键冲突 | 按锁定 Operator 版本验证来源兼容性、覆盖行为和失败规则 | 待验证 |
 | T37 | Admission | 无注入 Pod 仍匹配 Webhook | 记录真实匹配规则、无副作用的 Pod Spec 和创建延迟基线 | 待验证 |
 | T38 | Admission | opt-in Pod 在 Webhook fail-open 后运行 | 检测 Agent/SDK 注入缺失、阻止扩量；业务 Pod 不因遥测缺失被杀 | 待验证 |
-| T39 | 服务身份 | `app.kubernetes.io/instance` 与 `name` 不同 | 缺显式身份 CI 拒绝；指定后 SDK Resource 等于业务服务名 | 待验证 |
+| T39 | 服务身份 | Helm `instance` 与业务名不同，且仅 `OTEL_RESOURCE_ATTRIBUTES.service.name` 显式配置 | CI 识别 Operator 注入 `OTEL_SERVICE_NAME` 的覆盖风险并拒绝；补齐一致的 `OTEL_SERVICE_NAME` 或 Annotation 后最终 OTLP 等于业务名 | 待验证 |
 | T40 | 服务身份 | 同一服务跨 Namespace、Cluster、Helm Release | `service.namespace/name` 稳定，K8s 物理属性及发布事件目标正确 | 待验证 |
 | T41 | 发布事件 | 同 `event_id` 不同载荷 | `409` 且无状态修改；相同载荷重试幂等 | 待验证 |
-| T42 | 发布事件 | succeeded 与 failed 冲突、终态前收到成功事件 | 冲突为 `409`；迟到的 started 不回退终态 | 待验证 |
-| T43 | 发布事件 | 回滚恢复旧制品 | 新 Deployment ID + 关系引用，原历史终态不可变 | 待验证 |
-| T44 | 发布事件 | 未知类型、身份变化、非法时间 | `422` 或规定拒绝状态，拒绝后不产生写入副作用 | 待验证 |
+| T42 | 发布事件 | succeeded 与 failed 冲突、终态先到、不同 event_id 的第二个 started | 终态冲突与重复开始均为 `409`；唯一的迟到 started 可补记且不回退终态 | 待验证 |
+| T43 | 发布事件 | 回滚恢复旧制品、重复或未完成回滚关系事件 | 新 Deployment ID + 同 Tenant 的关系引用；只有被引用的回滚 Deployment 成功才确认关系；重复事件幂等，原终态不可变 | 待验证 |
+| T44 | 发布事件 | 未知类型、身份变化、非法时间、v1 Schema 演进 | 不兼容输入按约定拒绝且无副作用；旧版 CI/CD Adapter 面对新增可选字段保持兼容 | 待验证 |
 
 ### 7.1 E2E 最小断言
 
@@ -662,21 +667,25 @@ assert collector_output["service.version"] == sdk_output["service.version"]
 
 ### 7.3 配置来源与发布状态机负面测试
 
-**配置来源矩阵（隔离测试集群）**：对同一业务测试容器分别使用无显式资源、字面量 `env.value`、ConfigMap `valueFrom`、Secret `valueFrom`、`envFrom` 键冲突、无法读取的 `envFrom` 和 Java `JAVA_TOOL_OPTIONS.valueFrom`。先断言发布校验的允许/拒绝，再在**一次性测试命名空间**中对受影响的上游机制复现 Pod CREATE 与实际 Pod Spec。不得将负面输入交给生产 API Server 验证；同时需要验证未启用注入的同一输入不被 Datafox 的 CI 注入门禁误拒绝。
+**配置来源矩阵（隔离测试集群）**：对同一业务测试容器分别使用无显式资源、字面量 `env.value`、ConfigMap `valueFrom`、Secret `valueFrom`、`envFrom` 键冲突、无法读取的 `envFrom`、Java `JAVA_TOOL_OPTIONS.valueFrom`，以及只设置 `OTEL_RESOURCE_ATTRIBUTES.service.name` 但 Helm `instance` 与业务名不同的冲突输入。先断言发布校验的允许/拒绝，再在**一次性测试命名空间**中对受影响的上游机制复现 Pod CREATE 与实际 Pod Spec。不得将负面输入交给生产 API Server 验证；同时需要验证未启用注入的同一输入不被 Datafox 的 CI 注入门禁误拒绝。
 
 **发布事件矩阵（Backend 契约层）**：
 
 | 输入事件顺序 | 预期状态 |
 | --- | --- |
 | started → succeeded | `succeeded` |
-| succeeded → 迟到且时间早于 succeeded 的 started | 仍为 `succeeded`，只补记历史 |
+| started → 不同 `event_id` 的第二个 started | `409`，状态仍 `running` |
+| succeeded → 迟到且时间早于 succeeded 的**首个** started | 仍为 `succeeded`，只补记历史 |
+| 已有 started → succeeded → 第二个不同 `event_id` 的 started | `409`，不可补写第二次开始 |
 | started → failed → succeeded | 终态 `failed`，后续 `409` |
 | 同一 `event_id` 重复且 payload 相同 | 只保存一次 |
 | 同一 `event_id` 重复但 payload 不同 | `409`，状态不变 |
 | 原部署 succeeded → 新 Deployment `trigger=rollback` 并 succeeded | 原部署仍 succeeded，新部署独立关联 |
+| `deployment.rolled_back` 先于被引用的新 Deployment succeeded | 暂记待核实关系，不提前显示回滚成功；重复 event_id 幂等 |
+| `deployment.rolled_back` 引用其他 Tenant 或变更关系目标 | 拒绝并保留原历史 |
 | 不同发布事件使用同一 `deployment_id` 却改变 Service/Artifact/Target | 拒绝并保留原身份 |
 
-所有断言都是**待实现的测试契约**，不是本 PR 的已通过结果。
+另外针对 T14/T17 使用**两个不同 Pod UID 与跨 Tenant/Cluster 重叠 IP**、伪造 `k8s.pod.uid`、代理转发与可信直连入口做正反测试；针对 `k8s.pod.ip` 检查 Collector 的 `extract.metadata` 是否实际输出正确单值。针对 Inst-01 在同 Pod 不同容器和同容器多独立 SDK 进程两种情况下对照实例 ID。所有断言都是**待实现的测试契约**，不是本 PR 的已通过结果。
 
 ## 8. 交付边界与里程碑
 
