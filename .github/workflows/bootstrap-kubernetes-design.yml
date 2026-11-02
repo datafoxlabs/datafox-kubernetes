@@ -1,0 +1,43 @@
+name: Bootstrap governed Kubernetes design
+
+on:
+  push:
+    branches:
+      - docs/design-package-proposal
+    paths:
+      - .github/workflows/bootstrap-kubernetes-design.yml
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Fetch pinned RepoFoundry distribution
+        run: |
+          git clone --depth 1 --branch v0.15.1 https://github.com/XiaoWeiKIN/RepoHarnessKit.git /tmp/repofoundry
+          test "$(git -C /tmp/repofoundry rev-parse HEAD)" = "7a05228317618c4c87651f6a5e95dd7fa524609c"
+      - name: Allocate and validate draft Design Package
+        run: |
+          set -euo pipefail
+          python3 /tmp/repofoundry/engineering-design/scripts/designctl.py --repo . new-design \
+            --slug kubernetes-metadata-release-integration \
+            --title "Datafox Kubernetes Metadata and Release Integration" \
+            --layout package \
+            --research-not-required-reason "Existing version-pinned OpenTelemetry Operator and Collector source review, merged architecture proposal, and explicit product scope decisions provide the current design inputs." \
+            --author "Datafox engineering (proposal)" \
+            --owner "Unassigned"
+          python3 /tmp/repofoundry/engineering-design/scripts/designctl.py --repo . validate
+      - name: Commit generated draft and indexes
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/.designctl/state.json docs/DESIGN-DOCS.md docs/design-docs/
+          git diff --cached --quiet && exit 0
+          git commit -m "docs: scaffold draft Kubernetes Design Package with designctl"
+          git push origin HEAD:docs/design-package-proposal
