@@ -45,6 +45,10 @@ Kubernetes 运行位置优先保留可验证的 Cluster、Namespace、Workload�
 
 `server.address`、`server.port`、`client.address`、`network.local.address`、`network.peer.address`、`url.full`、`dns.question.name` 属于其各自的请求或网络语义，**不构成服务的 Resource 域名或实例 IP**。HTTP Host/Forwarded Header 可能被伪造；不进行强制反向 DNS，不用 Kubernetes Service FQDN 或同名域名直接合并跨 Tenant 服务。URL 敏感信息遵守上游清理规范。详见[实例与域名验收用例](tagging-contract-tests.md)。
 
+Kubernetes Service DNS 常见形式为 `<service>.<namespace>.svc.<cluster-domain>`，但 Cluster Domain 不保证为 `cluster.local`。普通 Service、Headless Service、Ingress 与 Gateway 的路由关系不同；同一服务可能暴露多个访问域名，同一域名也可能对应不同业务。不得从 Pod Name 或 Service 名猜测 FQDN 并写入全局 Resource。若未来需要服务访问域名资产目录，应由 Backend 基于可信路由配置、来源和观察时间单独构建 Service Endpoint / Route 关系；P0 不建设域名注册中心或实时 DNS 探测器。
+
+`url.full` 可能含账号、Token 与敏感查询参数，`dns.question.name` 可包含内部服务信息；默认指标按稳定的 `http.route` 等低基数维度组织，避免使用任意 URL/Host/DNS 值分组。仅在明确需求下按白名单采集 `http.request.header.<key>`（例如 `host`），不把客户端可控制的 Header 或网络地址作为服务身份、数据驻留、Tenant 权限或权威路由证据。Java Agent 不增加私有网络探测器、反向 DNS、周期网卡扫描或应用热路径的 Kubernetes API 调用。
+
 ### 2.3 Tenant、Cloud Region 与可选 Cell
 
 已认证的平台 Tenant 是读写权限和数据驻留的边界。被观测 SaaS 应用的**业务客户租户**可能随请求变化，不应被自动写成共享进程的全局 Resource；来自 OTLP、Pod Label 或 `cloud.region` 的值不能提升平台权限。
