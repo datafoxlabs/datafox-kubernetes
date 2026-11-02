@@ -1,6 +1,6 @@
 # Datafox Kubernetes Integration
 
-Datafox 的 Kubernetes 可观测性集成项目。以 **OpenTelemetry 标准**为跨语言遥测契约，计划复用上游 Operator 进行工作负载级自动注入、使用 Collector 补充 Kubernetes 基础设施属性，并由 CI/CD 向 Datafox Backend 上报发布事件。
+Datafox 的 Kubernetes 可观测性集成项目。以 **OpenTelemetry 标准** 为跨语言遥测契约，计划复用上游 Operator 进行工作负载级自动注入、使用 Collector 补充 Kubernetes 基础设施属性，并由 CI/CD 向 Datafox Backend 上报发布事件。
 
 > **项目状态：架构与实施方案（Proposal）。** 目前仓库已包含 RepoFoundry 工程 Harness，但尚未实现、安装或验证 Operator/Collector 集成、Java Agent 注入镜像、多语言 E2E 或 Backend Release API。本文和示例配置不是生产就绪承诺。
 
@@ -23,12 +23,12 @@ Datafox 的 Kubernetes 可观测性集成项目。以 **OpenTelemetry 标准**�
 - **发布事实**：CI/CD 上报 Release/Deployment Event；一次制品构建、一次部署尝试与一个运行中的 Pod 具有不同身份和生命周期。
 - **拓扑与权限**：Tenant 来自可信认证；Region 使用 OTel `cloud.region`；仅存在实际单元化业务需求时启用可选 `datafox.unit.id`。
 
-以上为**设计契约**，不是已实施功能。D1–D4 是产品层已讨论的设计决策编号，**不是**已注册或批准的 RepoFoundry ADR。
+以上为**设计契约**，不是已实施功能。D1–D4 是产品层已讨论的设计决策编号，** 不是**已注册或批准的 RepoFoundry ADR。
 
 ## 工程边界与验证
 
 本仓库计划维护 Kubernetes 配置、Helm/部署约定、Java 注入镜像封装和集成测试；Java Agent 的运行时实现在独立的 `datafox-java-agent` 项目，发布 API 与分析能力由 Datafox Backend 负责。
 
-RepoFoundry Harness/Spec 校验与 **Kubernetes 运行时验证**是不同的门禁。目前 T01–T44 及 Tag/Topo/Inst/Domain 合同仍为待执行用例。任何正式部署前必须锁定 Operator/Collector 和各语言组件版本，并取得真实 Pod CREATE、OTLP Resource、业务性能和回滚验证证据。
+RepoFoundry Harness/Spec 校验与 **Kubernetes 运行时验证** 是不同的门禁。目前 T01–T44 及 Tag/Topo/Inst/Domain 合同仍为待执行用例。任何正式部署前必须锁定 Operator/Collector 和各语言组件版本，并取得真实 Pod CREATE、OTLP Resource、业务性能和回滚验证证据。
 
 参考上游：[OpenTelemetry Operator](https://github.com/open-telemetry/opentelemetry-operator) · [Collector Contrib](https://github.com/open-telemetry/opentelemetry-collector-contrib) · [Java Instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)。

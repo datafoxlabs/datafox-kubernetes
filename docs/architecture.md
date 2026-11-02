@@ -7,7 +7,7 @@
 >
 > **标签语义与数据模型优先**：[Datafox Unified Tagging Convention](unified-tagging-convention.md) 是本方案待评审的跨语言字段契约。本文使用其中的字段来说明系统结构；在该规范被评审前，本架构仍不能作为已经批准的字段兼容性承诺。
 >
-> 本文描述目标系统的结构、依赖、接口和失败边界。**具体 YAML、构建命令、上线步骤、回滚操作与 44 项测试用例**由 [实施与验证手册](implementation-and-verification.md) 维护，避免两个文件重复保存操作细节。
+> 本文描述目标系统的结构、依赖、接口和失败边界。**具体 YAML、构建命令、上线步骤、回滚操作与 44 项测试用例** 由 [实施与验证手册](implementation-and-verification.md) 维护，避免两个文件重复保存操作细节。
 
 ## 1. 设计目标：让跨语言遥测具备统一的服务、运行位置和发布身份
 
@@ -17,7 +17,7 @@
 - **它运行在哪里？** Cluster、Namespace、Workload、Pod、必要时 Container。
 - **它属于哪次交付？** Git Commit、镜像 Digest、部署目标、开始与结束事件。
 
-这三组事实来自不同的系统，生命周期也不同。服务版本属于**应用制品身份**，Pod 属于**运行实例**，Deployment Event 属于**交付历史**。把三者合并成一个标签，会在滚动升级、回滚、跨环境发布或同版本重复部署时产生错误归因。
+这三组事实来自不同的系统，生命周期也不同。服务版本属于**应用制品身份**，Pod 属于** 运行实例**，Deployment Event 属于** 交付历史**。把三者合并成一个标签，会在滚动升级、回滚、跨环境发布或同版本重复部署时产生错误归因。
 
 **设计主张：应用身份在 SDK Resource 中确定；Kubernetes 拓扑由 Collector 补充；CI/CD 负责发布事实。** Datafox 只在平台配置与 Backend 建立这些事实之间的契约，不为每种语言重新实现 Kubernetes 探测。
 
@@ -36,7 +36,7 @@
 
 ### 1.2 范围和非目标
 
-**本仓库**计划交付 Operator/Collector 安装配置、Datafox Java 自动注入镜像封装、多语言样例、版本来源预检、Helm 与端到端测试。仓库不运行一个额外的 Datafox Kubernetes Controller。
+**本仓库** 计划交付 Operator/Collector 安装配置、Datafox Java 自动注入镜像封装、多语言样例、版本来源预检、Helm 与端到端测试。仓库不运行一个额外的 Datafox Kubernetes Controller。
 
 **外部职责**：`datafox-java-agent` 负责 Java Instrumentation Distribution；其他语言优先复用官方 OpenTelemetry Instrumentation / SDK；Datafox Backend 实现 Release Tracking API、持久化和版本分析。
 
@@ -97,14 +97,14 @@ flowchart TB
     CI -->|"Deployment Events"| Release
 ~~~
 
-图中 **Pod Admission** 发生在新 Pod 创建时，**遥测导出**发生在业务进程运行时，**发布事件上报**发生在 CI/CD 交付过程中。三者互不替代。
+图中 **Pod Admission** 发生在新 Pod 创建时，** 遥测导出**发生在业务进程运行时，** 发布事件上报**发生在 CI/CD 交付过程中。三者互不替代。
 
 系统有两条控制路径：
 
 1. **配置控制路径**：CI/CD → Kubernetes API Server → Operator Webhook → 新 Pod 的 SDK/Agent 配置。Operator 仅参与创建阶段；运行时不依赖它逐次注入属性。
 2. **交付事实路径**：CI/CD → Datafox Release Tracking。它保存部署尝试及其状态，不经过 Collector。
 
-**数据路径**为应用 SDK/Agent → OTLP → Collector → Datafox Ingestion。Collector 独立从 Kubernetes API 获取 Pod/Owner 信息；它根据传入遥测的 Pod 身份进行补全，而不通过修改应用 Pod 写回元数据。
+**数据路径** 为应用 SDK/Agent → OTLP → Collector → Datafox Ingestion。Collector 独立从 Kubernetes API 获取 Pod/Owner 信息；它根据传入遥测的 Pod 身份进行补全，而不通过修改应用 Pod 写回元数据。
 
 ### 2.3 本仓库与外部系统的依赖方向
 
@@ -124,7 +124,7 @@ flowchart LR
 
 ### 3.1 版本来源与优先级
 
-本设计保留 **D1：推荐使用标准 Pod Label + OTel Resource Annotation** 的架构决策。标准字段是默认接入路径，**不是强制的 Kubernetes 标签命名政策**。企业自定义 Label 可由已有 Helm、Kustomize 或 CI/CD 模板转换为标准 Resource Annotation；已显式提供 OTel SDK Resource 的应用不需要为 Datafox 添加重复 Label。[字段规范与适配路径](unified-tagging-convention.md)。
+本设计保留 **D1：推荐使用标准 Pod Label + OTel Resource Annotation** 的架构决策。标准字段是默认接入路径，** 不是强制的 Kubernetes 标签命名政策**。企业自定义 Label 可由已有 Helm、Kustomize 或 CI/CD 模板转换为标准 Resource Annotation；已显式提供 OTel SDK Resource 的应用不需要为 Datafox 添加重复 Label。[字段规范与适配路径](unified-tagging-convention.md)。
 
 | 层级 | 来源 | 作用 |
 | --- | --- | --- |
@@ -133,9 +133,9 @@ flowchart LR
 | 3 | Pod Label `app.kubernetes.io/version` | 默认应用版本 |
 | 4 | Operator 其他推导（例如镜像 Tag） | 上游兜底行为；**不作为 Datafox 生产版本契约** |
 
-启用 `Instrumentation.spec.defaults.useLabelsForResourceAttributes` 才会采用相关标准 Label。上游 Operator 的 Resource 选择是**逐属性**处理；特别地，缺少 `OTEL_SERVICE_NAME` 时，Operator 可能依据 Pod Label/Annotation 注入该环境变量。由于 SDK 的 `OTEL_SERVICE_NAME` 优先于 `OTEL_RESOURCE_ATTRIBUTES.service.name`，**只显式配置后者不足以保证最终服务名**。受管理发布应在渲染阶段检查两者与目标业务身份的兼容性，无法确定时拒绝发布，并以最终 OTLP Resource 核实。表格不能直接推断所有语言 SDK 的 Resource 合并顺序。[Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L495-L566)。[上游依据：Resource Attributes](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
+启用 `Instrumentation.spec.defaults.useLabelsForResourceAttributes` 才会采用相关标准 Label。上游 Operator 的 Resource 选择是**逐属性** 处理；特别地，缺少 `OTEL_SERVICE_NAME` 时，Operator 可能依据 Pod Label/Annotation 注入该环境变量。由于 SDK 的 `OTEL_SERVICE_NAME` 优先于 `OTEL_RESOURCE_ATTRIBUTES.service.name`，**只显式配置后者不足以保证最终服务名**。受管理发布应在渲染阶段检查两者与目标业务身份的兼容性，无法确定时拒绝发布，并以最终 OTLP Resource 核实。表格不能直接推断所有语言 SDK 的 Resource 合并顺序。[Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L495-L566)。[上游依据：Resource Attributes](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
 
-**启用受管理 Release Tracking 的发布**必须由 CI/CD 在最终配置中验证稳定版本来源，可能来自标准 Label、自定义 Label 的部署时映射、OTel Annotation 或应用显式配置；缺失时按发布策略拒绝扩量。普通 OTel 遥测允许版本缺失并保留未知状态。Datafox 不另加阻断 Pod 创建的自定义 Webhook；Collector 不从 Image Tag 生成 `service.version`。
+**启用受管理 Release Tracking 的发布** 必须由 CI/CD 在最终配置中验证稳定版本来源，可能来自标准 Label、自定义 Label 的部署时映射、OTel Annotation 或应用显式配置；缺失时按发布策略拒绝扩量。普通 OTel 遥测允许版本缺失并保留未知状态。Datafox 不另加阻断 Pod 创建的自定义 Webhook；Collector 不从 Image Tag 生成 `service.version`。
 
 ### 3.2 稳定服务身份不能依赖 Helm Release 名
 
@@ -143,7 +143,7 @@ Datafox Backend 的逻辑服务键定义为 **`(tenant, service.namespace, servi
 
 例如，一个 `order-service` 在 `commerce-staging` 和 `commerce-prod` 两个 Kubernetes Namespace 运行。如果希望跨环境查询同一业务服务，必须使两个应用的 `service.namespace=commerce`、`service.name=order-service` 保持一致。
 
-特别需要验证：Operator 支持从 `app.kubernetes.io/instance` / `app.kubernetes.io/name` 推导 `service.name`；前者可能是 Helm Release 名。两者不同时，**受管理发布追踪**必须要求明确业务身份；即使已配置 `OTEL_RESOURCE_ATTRIBUTES.service.name`，也必须考虑 Operator 是否另行注入 `OTEL_SERVICE_NAME`。建议通过一致的 `OTEL_SERVICE_NAME` 或 `resource.opentelemetry.io/service.name` 固定最终业务名称；普通遥测接入保留上游实际值并报告命名歧义，不强制更改企业 Helm Label。`service.namespace` 的上游缺省推导可以来自 Kubernetes Namespace，因此跨环境的逻辑命名空间应显式提供。[上游依据：Operator Resource Attributes](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
+特别需要验证：Operator 支持从 `app.kubernetes.io/instance` / `app.kubernetes.io/name` 推导 `service.name`；前者可能是 Helm Release 名。两者不同时，**受管理发布追踪** 必须要求明确业务身份；即使已配置 `OTEL_RESOURCE_ATTRIBUTES.service.name`，也必须考虑 Operator 是否另行注入 `OTEL_SERVICE_NAME`。建议通过一致的 `OTEL_SERVICE_NAME` 或 `resource.opentelemetry.io/service.name` 固定最终业务名称；普通遥测接入保留上游实际值并报告命名歧义，不强制更改企业 Helm Label。`service.namespace` 的上游缺省推导可以来自 Kubernetes Namespace，因此跨环境的逻辑命名空间应显式提供。[上游依据：Operator Resource Attributes](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md)。
 
 ### 3.3 多语言适配契约
 
@@ -156,7 +156,7 @@ Datafox Backend 的逻辑服务键定义为 **`(tenant, service.namespace, servi
 | Go（已集成 SDK） | Operator `inject-sdk` | 业务初始化的 Go OTel SDK |
 | 其他已集成 SDK | SDK-only 或显式配置 | 业务 SDK |
 
-**自动埋点注入**与 **SDK-only 配置注入**是两种独立能力。`inject-sdk` 不会安装 SDK，也不会凭空生成 Span。Go 手动初始化 Resource 时需要显式读取环境配置，例如使用上游 `resource.WithFromEnv()`；不默认启用需要额外权限的 Go eBPF 自动埋点。[上游依据：SDK-only](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/languages/sdk-only.md)。
+**自动埋点注入** 与 **SDK-only 配置注入** 是两种独立能力。`inject-sdk` 不会安装 SDK，也不会凭空生成 Span。Go 手动初始化 Resource 时需要显式读取环境配置，例如使用上游 `resource.WithFromEnv()`；不默认启用需要额外权限的 Go eBPF 自动埋点。[上游依据：SDK-only](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/languages/sdk-only.md)。
 
 Datafox Java Agent 仅负责自己的 Java Instrumentation Distribution。Operator 使用的自定义 Java 注入镜像需要提供可读的 `/javaagent.jar` 和文件复制命令；具体 Dockerfile、构建来源及镜像 Digest 由实施手册和发布流水线定义。[上游依据：Java 注入镜像](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/autoinstrumentation/java/Dockerfile)。
 
@@ -175,7 +175,7 @@ Datafox Java Agent 仅负责自己的 Java Instrumentation Distribution。Operat
 
 Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Collector 是基础设施补全层”表示**责任与覆盖边界**，不意味着 SDK Resource 绝不能包含 Pod UID 等基础设施属性。
 
-`k8sattributes` 通过 Kubernetes API 建立 Pod 元数据缓存，并按照配置的匹配规则关联接收到的 Resource。推荐的技术匹配顺序为 **Pod UID → Pod IP → 连接 IP**，但**仅在信任边界允许的范围内**使用。Resource 中的 Pod UID/IP 是可由上报方声明的数据，不等同可信的 Kubernetes 身份；接收端必须先识别可信的采集入口、Cluster 和访问主体。跨租户、跨集群或经过代理/多级 Collector 的 Gateway 不得把未经验证的 UID/IP 或代理连接 IP 直接当作业务 Pod 的权威身份；必要时仅保留原始遥测并标记关联缺失。最接近应用的可信入口应尽早完成 Pod 元数据关联，后续链路保留已确认的关联结果。仅凭 Pod UID 不能区分同 Pod 的两个业务容器，镜像/容器属性还需 `k8s.container.name` 或 `container.id`。Pod 关联不授予 Datafox Tenant 权限，也不能改变已鉴权的数据驻留路由。[上游依据：k8sattributes](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/d63fa334e03aa36d0ac2cd29af05cc8f60d164fc/processor/k8sattributesprocessor/README.md)。
+`k8sattributes` 通过 Kubernetes API 建立 Pod 元数据缓存，并按照配置的匹配规则关联接收到的 Resource。推荐的技术匹配顺序为 **Pod UID → Pod IP → 连接 IP**，但** 仅在信任边界允许的范围内**使用。Resource 中的 Pod UID/IP 是可由上报方声明的数据，不等同可信的 Kubernetes 身份；接收端必须先识别可信的采集入口、Cluster 和访问主体。跨租户、跨集群或经过代理/多级 Collector 的 Gateway 不得把未经验证的 UID/IP 或代理连接 IP 直接当作业务 Pod 的权威身份；必要时仅保留原始遥测并标记关联缺失。最接近应用的可信入口应尽早完成 Pod 元数据关联，后续链路保留已确认的关联结果。仅凭 Pod UID 不能区分同 Pod 的两个业务容器，镜像/容器属性还需 `k8s.container.name` 或 `container.id`。Pod 关联不授予 Datafox Tenant 权限，也不能改变已鉴权的数据驻留路由。[上游依据：k8sattributes](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/d63fa334e03aa36d0ac2cd29af05cc8f60d164fc/processor/k8sattributesprocessor/README.md)。
 
 ### 4.1 单层与多层 Collector
 
@@ -186,7 +186,7 @@ Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Co
 
 ### 4.2 实例身份与网络地址的分工
 
-**服务实例不是 IP 地址。** 实例层应优先保留 SDK 提供的 `service.instance.id`；在 Kubernetes 中，`k8s.pod.uid` 是 Pod 的稳定关联键，`k8s.pod.ip` 只是网络位置，`k8s.node.name` / `k8s.node.uid` 表示 Node。锁定 Operator 默认用 Namespace、Pod Name、Container Name 生成实例 ID：足以区分不同容器，但不能区分**同一容器内独立 SDK 进程**，这种情况须由进程自身提供不同 ID 并检查实际 OTLP。Pod UID 不应无条件转成进程级 `service.instance.id`。[Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L719-L738)。
+**服务实例不是 IP 地址。** 实例层应优先保留 SDK 提供的 `service.instance.id`；在 Kubernetes 中，`k8s.pod.uid` 是 Pod 的稳定关联键，`k8s.pod.ip` 只是网络位置，`k8s.node.name` / `k8s.node.uid` 表示 Node。锁定 Operator 默认用 Namespace、Pod Name、Container Name 生成实例 ID：足以区分不同容器，但不能区分** 同一容器内独立 SDK 进程**，这种情况须由进程自身提供不同 ID 并检查实际 OTLP。Pod UID 不应无条件转成进程级 `service.instance.id`。[Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L719-L738)。
 
 对于 VM/物理机，按需使用 OTel `host.id` / `host.ip`（后者为 `string[]`）；针对某一次请求/连接的 `server.address`、`client.address`、`network.peer.address` 不应写成进程级 Resource。Kubernetes Pod IP 可以被回收复用，Backend 关联必须依赖 Pod UID、Cluster 和有效时间，而不是仅用 IP 拼接实例 ID。
 
@@ -256,9 +256,9 @@ v1 的最小能力为**版本级查询 + 带环境/集群维度的候选部署�
 
 Datafox 服务身份与物理部署、故障隔离和租户权限必须拆开：
 
-- **租户隔离**由 Backend 的认证租户上下文确定，不允许 SDK/Collector 传入的任意 Resource Attribute 改变存储分区或读取授权。
-- **部署位置**使用 OTel `cloud.region`、`cloud.availability_zone`（当前 Development）与 `k8s.cluster.uid`（Stable）等标准属性；不能把 `deployment.environment.name` 当作 Region。
-- **业务单元（Cell）**是可选的一等部署维度。仅在存在稳定的流量/故障隔离单元时启用 `datafox.unit.id`（Datafox 自定义属性提案），按 `(tenant, environment, unit.id)` 保持唯一；不要求所有语言 Agent 开发 Cell Detector。
+- **租户隔离** 由 Backend 的认证租户上下文确定，不允许 SDK/Collector 传入的任意 Resource Attribute 改变存储分区或读取授权。
+- **部署位置** 使用 OTel `cloud.region`、`cloud.availability_zone`（当前 Development）与 `k8s.cluster.uid`（Stable）等标准属性；不能把 `deployment.environment.name` 当作 Region。
+- **业务单元（Cell）** 是可选的一等部署维度。仅在存在稳定的流量/故障隔离单元时启用 `datafox.unit.id`（Datafox 自定义属性提案），按 `(tenant, environment, unit.id)` 保持唯一；不要求所有语言 Agent 开发 Cell Detector。
 - **Release/Deployment 关系**：同一服务的相同版本在不同 Region/Cell 独立发布，是同一逻辑服务对应多个 Deployment。启用 Cell 时，Release API 可选增加 `target.unit_id`；无 Cell 发布无需此字段。不同发布尝试分配独立 Deployment ID。
 
 **实施顺序**：P0 复用 OTel 标准 Region/Cluster 属性并建立 Tenant 鉴权约束；P1 仅提供可选 `datafox.unit.id` 和发布 `target.unit_id`；P2 有真实跨云归一化需求时才重新评审 `datafox.region.id` 和复杂拓扑目录。一个 Cell 可以跨多个 Cluster，一个 Cluster 可以包含多个 Cell；P1 不建设 Cell 注册中心。完整身份边界见 [多租户、多地域、多单元部署模型](deployment-topology-and-isolation.md)。
@@ -323,7 +323,7 @@ sequenceDiagram
 
 上游 Operator 对已有 `OTEL_RESOURCE_ATTRIBUTES` 环境变量可能在原 `value` 后追加属性。如果它原本来自 `valueFrom`，则可能形成 Kubernetes 不允许的非空 `value` + `valueFrom` 组合，**直接阻断 Pod CREATE**。`envFrom` 内的同名键也可能被显式 `env` 注入遮蔽。对于 Java，`JAVA_TOOL_OPTIONS.valueFrom` 可能触发 Operator Mutation 错误，使 Pod 无 Agent 启动。[上游依据：SDK 注入](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L502-L566)、[Java 注入](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/javaagent.go)。
 
-因此 Datafox 预检只针对**启用注入的目标容器**：检查最终渲染 Pod Template 的 `env` / `envFrom` / `valueFrom`、ConfigMap/Secret 的实际键集合和来源一致性；无法证明兼容时拒绝**本次自动注入发布**，不拒绝未启用注入的业务。具体支持矩阵和错误测试位于实施手册第 3.1.1 节。
+因此 Datafox 预检只针对**启用注入的目标容器**：检查最终渲染 Pod Template 的 `env` / `envFrom` / `valueFrom`、ConfigMap/Secret 的实际键集合和来源一致性；无法证明兼容时拒绝** 本次自动注入发布**，不拒绝未启用注入的业务。具体支持矩阵和错误测试位于实施手册第 3.1.1 节。
 
 ### 7.3 生命周期边界与回滚
 

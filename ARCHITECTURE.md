@@ -1,10 +1,10 @@
 # Datafox Kubernetes — 架构速览
 
-> **状态：Architecture Proposal。** 本文件是面向开发与评审的**架构地图**，不是另一个独立的设计规范。完整的运行时与交付契约以 [docs/architecture.md](docs/architecture.md) 为准；各字段的权威语义以 [统一标签规范](docs/unified-tagging-convention.md) 为准。D1–D4 是产品设计决策编号，尚未注册或批准为正式 RepoFoundry ADR。
+> **状态：Architecture Proposal。** 本文件是面向开发与评审的** 架构地图**，不是另一个独立的设计规范。完整的运行时与交付契约以 [docs/architecture.md](docs/architecture.md) 为准；各字段的权威语义以 [统一标签规范](docs/unified-tagging-convention.md) 为准。D1–D4 是产品设计决策编号，尚未注册或批准为正式 RepoFoundry ADR。
 
 ## 系统如何工作
 
-Datafox 将三类事实分开：**应用身份**（产生遥测的 SDK Resource）、**运行位置**（Kubernetes/Collector）和**部署事实**（CI/CD Release Event）。它们的来源与生命周期不同，不能通过单个 Label 或版本号相互推断。
+Datafox 将三类事实分开：**应用身份**（产生遥测的 SDK Resource）、** 运行位置**（Kubernetes/Collector）和** 部署事实**（CI/CD Release Event）。它们的来源与生命周期不同，不能通过单个 Label 或版本号相互推断。
 
 ```mermaid
 flowchart LR
@@ -50,6 +50,6 @@ flowchart LR
 
 ## 验证状态与后续实施
 
-**已存在**：四份产品设计文档、RepoFoundry Harness 和对应校验工作流。**尚未证实**：Operator/Collector 的实际选定版本和运行配置、Agent 注入镜像、真实 Pod CREATE、跨语言 OTLP E2E、Backend Release API、性能和故障恢复。
+**已存在**：四份产品设计文档、RepoFoundry Harness 和对应校验工作流。** 尚未证实**：Operator/Collector 的实际选定版本和运行配置、Agent 注入镜像、真实 Pod CREATE、跨语言 OTLP E2E、Backend Release API、性能和故障恢复。
 
 首期工程应先锁定版本和负面输入矩阵，再基于 [实施与验证手册](docs/implementation-and-verification.md) 逐项产生执行证据。没有执行证据的用例保持“待验证”；不将 Harness 校验成功报告为 Kubernetes 集成已通过。
