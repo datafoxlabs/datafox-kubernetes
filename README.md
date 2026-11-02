@@ -1,15 +1,54 @@
 # Datafox Kubernetes Integration
 
-Datafox 的 Kubernetes 集成项目，面向 Java、Python、Node.js、.NET、Go 等 OpenTelemetry 应用。
+OpenTelemetry-based Kubernetes metadata and release integration for Datafox, designed for **Java, Python, Node.js, .NET, Go and SDK-instrumented services**.
 
-本项目采用 **OpenTelemetry Operator** 注入应用侧 Resource 与自动埋点配置，使用 **OpenTelemetry Collector** 补充基础设施元数据，发布事件由 CI/CD 主动上报 Datafox Backend。
+> **Status: architecture and implementation design only.** No Operator, Collector, Java image or Backend release API has been deployed or verified by this repository yet.
 
-## 工程原则
+## Tagging standard — review this first
 
-- 运行时复用 OpenTelemetry 官方组件，不 Fork Operator 或 Collector。
-- 版本优先使用标准 Pod Label `app.kubernetes.io/version`，允许 `resource.opentelemetry.io/service.version` Annotation 和用户显式配置覆盖。
-- Collector 只补充 Kubernetes 基础设施属性，不改写 `service.name` 或 `service.version`。
-- 仅对显式选择的工作负载启用 Pod Mutation，并通过 Canary、回滚和失败注入验证业务安全。
-- 当前仓库处于设计阶段，不表示已完成部署、兼容性验证或正式发布。
+**[Datafox Unified Tagging Convention — OTel-first (中文)](docs/unified-tagging-convention.md)** defines service identity, environment, application version, Kubernetes metadata, cross-signal semantics, and release tagging. It is a **proposed contract**, not an approved ADR or implemented policy. Review it before treating the architecture/implementation examples as normative.
 
-完整架构、部署步骤和验收规范将通过仓库文档评审逐步维护。
+The tagging convention also defines **service instance identity and network metadata**: `service.instance.id`, `k8s.pod.uid`, `k8s.pod.ip`, `host.ip`, and request-level network attributes. IP addresses are for locating an instance, not immutable instance IDs. The Operator-generated `service.instance.id` distinguishes Pod containers, but applications with multiple independent SDK processes in one container must provide their own unique IDs.
+
+The tagging convention also covers **service domains and DNS**: use standard request-level `server.address`, `url.full` and optional DNS attributes; do not turn URLs, Kubernetes Service DNS, or HTTP Host headers into permanent Service/Instance resource identity. Ingress/Gateway domain inventories are a separate, future product capability.
+
+## Tenancy, region, and cell topology
+
+**[Deployment Topology & Isolation Model (中文)](docs/deployment-topology-and-isolation.md)** separates P0 authenticated tenant isolation and standard OTel cloud/cluster location from P1 optional business cells. The only proposed P1 custom Resource field is `datafox.unit.id`; the optional release-event field is `target.unit_id`. A logical `datafox.region.id` and Cell registry are **deferred to P2 pending real use cases**, not v1 requirements.
+
+## Architecture decisions
+
+| Decision | Contract |
+| --- | --- |
+| Version source | Standard Kubernetes app labels are **recommended defaults, not mandatory**. Existing enterprise/cloud labels may be mapped by deployment templates to OTel Resource annotations; explicit SDK/OTEL configuration remains supported and subject to injection compatibility checks |
+| Injection | Reuse OpenTelemetry Operator; opt-in per workload; no Datafox admission webhook |
+| Collector | Enrich Kubernetes infrastructure attributes; never rewrite `service.name` / `service.version` |
+| Release events | CI/CD actively reports deployment lifecycle to Datafox Backend |
+
+## Documentation
+
+- **[Architecture and design decisions (中文)](docs/architecture.md)** — The problem, system roles, data flows, language integration, release identity, failure domains and upstream source evidence.
+- **[Implementation, rollout safety and verification (中文)](docs/implementation-and-verification.md)** — Operator Instrumentation, Collector configuration, Java image requirements, multi-language usage, CI/CD API, canary/rollback and 44 planned acceptance tests.
+
+### Recommended reading path
+
+1. Read the architecture to understand **why** service identity belongs to the SDK and Kubernetes topology belongs to Collector.
+2. Follow the implementation guide in a **disposable Kubernetes test cluster**, not in production.
+3. Lock actual Operator / Collector releases, verify the Pod mutation fail-open policy and test Java Agent startup.
+4. Complete the E2E matrix before expanding from canary to other production workloads.
+
+## Scope
+
+This repository will own Kubernetes manifests/Helm conventions, integration examples, packaging of a Datafox Java Agent injection image, validation tests and operational documentation. The Java runtime remains in `datafox-java-agent`. Datafox Backend owns the release event API and analytics.
+
+No custom Operator fork, Java Kubernetes detector, mandatory namespace-wide injection, privileged Go eBPF auto-instrumentation or automatic production rollout is part of v1.
+
+**Pre-deployment safeguards:** The planned CI gate rejects incompatible `OTEL_RESOURCE_ATTRIBUTES.valueFrom`, Java `JAVA_TOOL_OPTIONS.valueFrom`, unresolved or colliding `envFrom` keys in opted-in containers, and unresolved `OTEL_SERVICE_NAME` vs. `OTEL_RESOURCE_ATTRIBUTES.service.name` precedence conflicts (especially with Helm `app.kubernetes.io/instance`). The Pod Webhook can still match Pods without an injection annotation; admission match scope and fail-open observability coverage require separate validation. Collector Pod UID/IP association must also be limited to trusted, correctly scoped ingress; resource attributes alone are not authenticated identities. Connection-IP fallback is disabled in the illustrative Gateway configuration, and Pod IP extraction is explicitly configured. These contracts have not been implemented or tested yet.
+
+## Upstream
+
+- [OpenTelemetry Operator](https://github.com/open-telemetry/opentelemetry-operator)
+- [OpenTelemetry Collector Contrib / k8sattributes](https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/processor/k8sattributesprocessor)
+- [OpenTelemetry Java Instrumentation](https://github.com/open-telemetry/opentelemetry-java-instrumentation)
+
+See the documentation for **fixed upstream source snapshots** and unverified integration assumptions.
