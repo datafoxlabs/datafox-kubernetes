@@ -8,20 +8,26 @@
 
 | 你需要回答的问题 | 首选文档 | 本文档的权威范围 |
 | --- | --- | --- |
-| Datafox 的 `service.name`、`service.namespace`、`service.version` 如何定义和注入？实例、IP、URL、DNS 怎么区分？ | [统一标签规范](unified-tagging-convention.md) | OTel Resource/Span 语义、属性所有权、Label/Annotation 适配、跨信号规则及 Tag/Inst/Domain 合同 |
+| 服务身份、环境、版本和跨信号关联需要满足哪些 Datafox 条件？ | [统一语义合同](unified-tagging-convention.md) | Datafox 接入策略、身份边界、普通 OTLP 与受管理 Release Tracking 的差异 |
+| 标准属性名称、类型、成熟度、作用域、来源是什么？ | [属性登记表](attribute-registry.md) | OTel Attribute 唯一登记表；一行一个 Key；标准属性与自定义提案分开 |
+| Kubernetes Label/Annotation 怎样映射，来源冲突时怎么处理？ | [Kubernetes 资源映射](kubernetes-resource-mapping.md) | Operator/SDK 输入、版本优先级、CI 预检与失败行为 |
+| Tag、Inst、Domain 用例在哪里定义？ | [语义合同测试](tagging-contract-tests.md) | Tag-01–15、Inst-01–08、Domain-01–09 的唯一用例位置，全部待执行 |
 | 为什么复用 Operator？SDK、Collector、CI/CD、Backend 如何协作？发生故障时谁负责？ | [系统架构](architecture.md) | 控制面/数据面、D1–D4 产品设计决策、接口与生命周期、故障域与架构取舍 |
 | Tenant、Cloud Region、Cluster、Cell 的关系是什么？哪些可以作为授权或部署目标？ | [部署拓扑与隔离模型](deployment-topology-and-isolation.md) | 可信租户、数据驻留边界、标准地域、可选 `datafox.unit.id`、Topo 合同 |
 | 具体怎么安装、预检、金丝雀上线、回滚或验收？ | [实施与验证手册](implementation-and-verification.md) | Operator/Collector 配置示例、发布事件状态机、CI 预检、T01–T44 计划验收与证据要求 |
 
-**阅读顺序：** 首先确认[统一标签规范](unified-tagging-convention.md)中的字段含义，再看[系统架构](architecture.md)中的责任分配，然后根据问题阅读[拓扑设计](deployment-topology-and-isolation.md)，最后进入[实施手册](implementation-and-verification.md)执行实际验证。
+**阅读顺序：** 先看[统一语义合同](unified-tagging-convention.md)中的产品约束，按需查[属性登记表](attribute-registry.md)、[Kubernetes 映射](kubernetes-resource-mapping.md)与[语义测试](tagging-contract-tests.md)，再看[系统架构](architecture.md)与[拓扑设计](deployment-topology-and-isolation.md)，最后依据[实施手册](implementation-and-verification.md)执行验证。
 
 ## 2. 避免重复定义：Source of Truth
 
-这四份文档独立维护，但共享同一套设计边界：
+规范入口及其属性、映射、测试文档与架构/拓扑/实施文档共享以下职责边界：
 
 | 内容 | 唯一维护位置 | 其他文档应如何引用 |
 | --- | --- | --- |
-| OTel 字段名、类型、稳定性和版本来源 | [统一标签规范](unified-tagging-convention.md) | 引用章节，不另造平行字段表 |
+| OTel 字段名、类型、稳定性和上游来源 | [属性登记表](attribute-registry.md) | 不在其它表重写同一属性的基础定义 |
+| Datafox 接入条件、跨信号语义 | [统一语义合同](unified-tagging-convention.md) | 不把 P0/P1 或 Datafox Required 混同 OTel Requirement Level |
+| Kubernetes 输入映射与冲突处理 | [Kubernetes 资源映射](kubernetes-resource-mapping.md) | 只引用属性 Key 和既有字段定义 |
+| Tag/Inst/Domain 合同测试 | [语义合同测试](tagging-contract-tests.md) | 不复制成 T01–T44 的另一个事实来源 |
 | Operator/SDK/Collector/CI/CD/Backend 的架构职责 | [系统架构](architecture.md) | 引用组件与数据流，不把实现示例当成架构 |
 | Tenant/Region/Cell 身份作用域和阶段划分 | [拓扑与隔离模型](deployment-topology-and-isolation.md) | 使用相同定义，避免另建 Region/Cell 目录或强制字段 |
 | Manifest、发布前校验、Canary/回滚操作、事件状态转移明细 | [实施与验证手册](implementation-and-verification.md) | 架构文档只维护不变量与接口边界 |
@@ -52,8 +58,8 @@
 
 ## 5. 文档变更规则
 
-1. **先确认职责**：字段语义改统一标签规范；架构边界改系统架构；部署拓扑改隔离模型；可执行步骤和验收改实施手册。导航页只更新指向和阅读路径。
-2. **维持链接稳定**：既有四份设计文档保留在 `docs/` 根目录。只有确有必要且补齐所有相对链接、外部引用迁移方案时才讨论重命名或移动。
+1. **先确认职责**：属性 Key/类型/稳定性改登记表；接入语义改统一合同；Kubernetes 输入改映射合同；Tag/Inst/Domain 断言改测试合同；架构边界改系统架构；Tenant/Region/Cell 改拓扑模型；实施步骤和运行结果改实施手册。导航页只更新指向。
+2. **维持链接稳定**：既有四份设计文档路径保持不变，新规范文件采用独立路径；跨文档引用指向唯一事实来源。补齐相对链接和外部引用迁移方案后才讨论重命名或移动。
 3. **保留真实状态**：明确区分 Proposal、已确认设计方向、已实现、已实际测试与未验证；运行命令、测试结果、生产安全或版本兼容结论必须有本次验证证据。
 4. **遵守权威来源**：运行时以锁定版本的 OTel API/Operator/Collector 为准；RepoFoundry 治理状态不能靠手写 `ADR-001` 或文档标题代替。
 5. **变更检查**：校验 Markdown 结构、相对链接、Mermaid/代码围栏以及所有受影响的合同用例编号；涉及真实配置再执行相应 Helm、Kubernetes、SDK/Collector、Backend 验证。
