@@ -2,14 +2,14 @@
 type: synthesis-note
 status: proposed
 created: 2026-10-31
-updated: 2026-10-31
-as_of: 2026-10-31
+updated: 2026-11-02
+as_of: 2026-11-02
 review_after: 2027-01-31
 ---
 
 # Datafox Unified Tagging Convention — 统一遥测标签规范
 
-> **状态：Proposal v0.1，待架构评审。** 这是一份跨语言、跨信号、跨部署环境的**语义契约**，尚未成为已批准的 RepoFoundry ADR，也没有被任何生产 CI、SDK、Operator、Collector 或 Backend 强制执行。
+> **状态：Proposal v0.2，待架构评审。** 这是一份跨语言、跨信号、跨部署环境的**语义契约**，尚未成为已批准的 RepoFoundry ADR，也没有被任何生产 CI、SDK、Operator、Collector 或 Backend 强制执行。
 >
 > **规范权威：** OpenTelemetry Semantic Conventions 和 SDK Resource 配置规范。Datadog Unified Service Tagging 仅用于比较产品体验；Datadog 的 `env/service/version` 不作为 Datafox OTLP 属性名。
 >
@@ -23,12 +23,7 @@ review_after: 2027-01-31
 
 Datadog 的统一服务标签使用 `env`、`service`、`version` 连接 APM、指标、日志与发布视图。Datafox 保留这一产品目标，但**不创建一组平行的 `datafox.env` / `datafox.service` / `datafox.version`**。所有受支持的 OTel 遥测使用标准 Resource Attribute，保留用户的标准键名和类型，不在 Collector 中把它们改成 Datafox 私有键。
 
-| Datadog 概念 | Datafox 使用的 OTel 字段 | 稳定性（研究快照） | 意义 |
-| --- | --- | --- | --- |
-| `service` | `service.name` | Stable | 逻辑业务服务 |
-| 无直接同名核心标签 | `service.namespace` | Stable | 逻辑业务域，区分不同系统中的同名服务 |
-| `env` | `deployment.environment.name` | Stable | 部署环境，作为服务查询过滤维度 |
-| `version` | `service.version` | Stable | 软件制品版本，作为发布前后比较维度 |
+Datadog 的 `service`、`env`、`version` 在 Datafox 中分别对应标准 OTel `service.name`、`deployment.environment.name`、`service.version`；需要逻辑服务分组时使用 `service.namespace`。这些字段的具体类型和使用条件统一在第 3 节定义，此处不再维护第二份属性表。
 
 Datafox 的**逻辑服务身份** 是 `(tenant, service.namespace, service.name)`。`tenant` 由**已鉴权的接入与租户上下文** 决定，**不是** 允许调用者在 OTLP Resource 中自行声称的 `tenant` 属性。`deployment.environment.name` 和 `service.version` 分别是服务的部署维度与软件版本维度，不能作为“创建了一个新逻辑服务”的依据。
 
@@ -53,55 +48,69 @@ OpenTelemetry Service SemConv 要求同一水平扩展服务的 `service.name` �
 
 **作用域原则**：同一个业务应用的 SDK Traces / Metrics / Logs 在受支持且已启用的信号中，应能观察到相同的**服务身份 Resource**。这不意味着 Kubernetes Node/Container 的基础设施指标也必须带某个业务的 `service.version`，或没有开启的 SDK Logs 自动凭空出现。
 
-## 3. 标准属性清单与字段级数据所有权
+## 3. 标准属性与 Datafox 使用约束
 
-下表使用 `P0` 表示 Datafox 首期需要定义的字段，`P1` 表示按具体需求启用的字段。必需性是 **Datafox 交付策略**，不应被理解为 OTel 对所有运行环境的普遍要求。
+本节只列 Datafox **当前确实需要约定的常用 OTel 字段**，不是 OpenTelemetry 全量 Attribute Registry。Key、类型和稳定性以 [OpenTelemetry Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/tree/main/docs/registry/attributes) 为准；以下属性稳定性核对日期为 2026-11-02，生产兼容性仍须以锁定版本为准。
+
+**属性表固定六列：`Attribute`、`Type`、`OTel Stability`、`Scope`、`属性来源`、`Datafox 规则`。** 一行只定义一个属性，不合并不同类型的 Key；`Scope` 是本方案当前使用位置，不是对所有上游信号的全局排他规则。P0/P1 是产品交付阶段，**不是** OTel `Required/Recommended/Opt-In`，也不表示普通 OTLP 接入必须提供全部字段。后续未列出的标准属性继续遵守上游语义，Datafox 不因此禁止接收。
+
+**来源说明：** 本表的“属性来源”只说明属性对应的事实由哪个系统产生，不承诺特定组件或版本能够自动采集。Operator、Collector、SDK Detector 的自动生成、条件注入、透传与补全行为由独立的[元数据采集设计](metadata-collection-design.md)定义。属性语义不随采集机制变化。
 
 ### 3.1 P0：应用与环境身份
 
-| OTel Attribute | Datafox 受管理生产服务 | 类型 | 权威来源 | 写入阶段与规则 |
-| --- | --- | --- | --- | --- |
-| `service.name` | **必需** | string | 应用显式配置；否则 Operator 解析 | SDK Resource；缺省 `unknown_service` 不满足 Datafox 生产契约 |
-| `service.namespace` | **推荐**；跨环境稳定服务身份时建议显式设置 | string | 业务域 / 平台配置；否则保留上游默认 | SDK Resource；**不能**无条件将 Kubernetes Namespace 当成长期逻辑身份 |
-| `deployment.environment.name` | **推荐**；部署环境比较/发布关联场景需要 | string | 部署平台 / 用户配置 | SDK Resource；环境值由企业定义，`development`、`test`、`staging`、`production` 仅为示例 |
-| `service.version` | **参与发布追踪时必需** | string | 构建/发布系统；用户显式配置可覆盖 | SDK Resource；必须稳定、可追溯、与发布事件一致 |
-| `service.instance.id` | **推荐** | string | SDK/Instrumentation | 运行实例身份；不得由无法区分容器的 Collector 盲目推导 |
+| Attribute | Type | OTel Stability | Scope | 属性来源 | Datafox 规则 |
+| --- | --- | --- | --- | --- | --- |
+| `service.name` | string | Stable | Resource | 应用 SDK；Operator 可自动推导 | 逻辑服务名；普通 OTLP 允许上游缺省，受管理发布必须是明确业务身份 |
+| `service.namespace` | string | Stable | Resource | 应用 SDK；Operator 可自动推导 | 可缺失；跨环境稳定关联时推荐显式提供，不等于 K8s Namespace |
+| `deployment.environment.name` | string | Stable | Resource | 部署配置经 SDK / Operator 传递 | 环境查询和发布关联启用时需要；环境值由业务定义 |
+| `service.version` | string | Stable | Resource | CI/CD 版本配置；Operator 可自动推导 | 普通接入可缺失；受管理 Release Tracking 要求与 Release Event 的版本一致 |
+| `service.instance.id` | string | Stable | Resource | SDK；Operator 可生成容器级默认值 | 同一服务的并存实例应唯一；不能由 Collector 根据 Pod IP 盲目生成 |
 
-**作用域**：Datafox 兼容普通 OTel 入口和受管理的 Release Tracking 两种模式。普通 OTel 遥测只要求能够可靠识别服务，允许 `service.namespace`、环境和版本缺失并保留“未知”状态；需要按环境分析或将 Trace 关联到发布事件时，对应维度必须在该功能入口满足契约。是否要求在 CI 中拒绝缺失值由**显式启用的受管理发布策略**决定，不得对所有 Kubernetes 应用无差别施加强制要求。非 Kubernetes 服务也使用同一套 Resource 字段，不要求具备 `k8s.*`。
+**接入条件分层：** 普通 OTel 遥测允许命名空间、环境、版本缺失，按照 SDK 实际值接收；仅在显式启用受管理 Release Tracking 时，才对业务服务名、目标环境及发布版本实施相应 CI 预检。Datafox 的必需性不替代上游 Service/Service Instance Entity 的 Requirement Level。缺少必要信息时停止**相应受管理发布或关联**，不得无差别拒收正常 OTLP。
 
-**实例唯一性**：`service.instance.id` 应满足 OTel 的并存实例唯一性约束。锁定的 Operator 源码默认依据 Kubernetes Namespace、Pod Name 和 Container Name 生成实例标识；该值能够区分 Pod 中不同容器，**不能区分同一容器内多个独立 SDK 进程**。多进程场景必须由各进程的 SDK/启动配置提供真正不同的实例 ID，并核验最终 OTLP Resource；不能假设 Operator 自动解决此问题。不要把实例 ID 与 `service.name` 组合为新逻辑服务，也不要默认作为低基数指标维度。[固定 Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L719-L738)。
+**实例唯一性：** Operator 默认可按 Namespace/Pod/Container 构造 ID，通常可区分不同容器，但不能保证同一容器的多个独立 SDK 进程唯一。多进程场景需进程各自提供实例 ID，并以真实 OTLP 验证。`service.instance.id` 不参与逻辑服务名拼接，也不默认成为所有指标的聚合维度。[官方服务实例规范](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/resource/service.md)。
 
 ### 3.2 P0/P1：运行位置、制品与发行版
 
-| OTel Attribute | 优先级 | 由谁提供 | 用途与边界 |
-| --- | --- | --- | --- |
-| `k8s.cluster.name` | P0（K8s） | Collector/集群显式配置 | 可读集群名，不能单凭名称假设跨租户全球唯一 |
-| `k8s.cluster.uid` | P1 | 有权限的基础设施采集 | 更稳定的集群身份；OTel 约定可用 `kube-system` Namespace UID 表示 |
-| `k8s.namespace.name` | P0（K8s） | Collector | 实际 Pod Namespace，**不等于** `service.namespace` |
-| `k8s.deployment.name` 等 Workload 属性 | P0（适用时） | Collector | 实际 Deployment/StatefulSet/Job；不存在的类型应省略 |
-| `k8s.pod.uid` | P0（K8s Pod 关联） | Operator Downward API / Collector | 关联 Pod，优先于经过代理后可能失真的连接 IP |
-| `k8s.pod.name`、`k8s.node.name` | P1 | Collector | 排障和工作负载定位 |
-| `k8s.container.name`、`container.id` | P1 | SDK / Collector（可确定时） | 多容器区分；不能盲目从 Pod 选取任意 Container |
-| `container.image.name`、`container.image.tags` | P1 | Collector/容器运行时 | 标准镜像字段；Tag 不是应用发布身份 |
-| `container.image.repo_digests` | P1 | Collector/容器运行时 | 镜像制品定位；并非每个接入场景都会提供 |
-| `vcs.ref.head.revision` | P1 | CI/CD / 构建系统 | VCS 提交版本；研究快照中为 Release Candidate，需按版本锁定和兼容 |
-| `telemetry.distro.name`、`telemetry.distro.version` | P1 | Agent Distribution | 标识 **Datafox Agent 发行版版本**，绝不冒充 `service.version` |
+| Attribute | Type | OTel Stability | Scope | 属性来源 | Datafox 规则 |
+| --- | --- | --- | --- | --- | --- |
+| `k8s.cluster.name` | string | Stable | Resource | 可信集群配置 / Collector | Kubernetes 定位 P0；不能仅凭名称推断跨租户唯一身份 |
+| `k8s.cluster.uid` | string | Stable | Resource | Kubernetes API / Collector | P1 可选；可用 `kube-system` Namespace UID 表示 |
+| `k8s.namespace.name` | string | Stable | Resource | Operator 可注入 | Pod 实际命名空间，不等于 `service.namespace` |
+| `k8s.deployment.name` | string | Stable | Resource | Operator 可按 Workload 注入 | P0 适用时；只反映真实存在的 Workload |
+| `k8s.pod.uid` | string | Stable | Resource | Operator 可条件注入 | Kubernetes Pod 关联键；未经验证的自报值不授予可信身份 |
+| `k8s.pod.ip` | string | Stable | Resource | Kubernetes Pod 运行位置 | 可选补充单值 IP；会复用，不是实例主键 |
+| `k8s.pod.name` | string | Stable | Resource | Operator 可注入 | P1 排障定位，不替代 Pod UID |
+| `k8s.node.name` | string | Stable | Resource | Operator 可注入 | P1 Node 定位，不把 Pod IP 当 Node IP |
+| `k8s.container.name` | string | Stable | Resource | Operator 可注入 | P1 区分多容器；不能随意选取任一容器 |
+| `container.id` | string | Stable | Resource | 容器运行时元数据 | P1 容器身份，不等于独立 SDK 进程 |
+| `container.image.name` | string | Stable | Resource | 容器运行时 / Kubernetes 元数据 | P1 镜像名称，不是逻辑服务名 |
+| `container.image.tags` | string[] | Stable | Resource | 容器镜像元数据 | P1 镜像 Tag 数组；不能直接当应用发布版本 |
+| `container.image.repo_digests` | string[] | Stable | Resource | 容器镜像元数据 | P1 制品定位，不等于 Deployment ID |
+| `cloud.region` | string | Development | Resource（适用时） | 云平台元数据 / 部署配置 | P0 适用时保留云厂商原生值，不自造跨云 Region |
+| `cloud.provider` | string | Development | Resource（适用时） | 云平台元数据 / 部署配置 | 按上游云厂商约定，不决定 Datafox Tenant |
+| `host.ip` | string[] | Development | Resource（主机场景） | Host Resource Detector | P1 可选主机 IP 数组，不能视为单值 Pod IP |
+| `telemetry.distro.name` | string | Stable | Resource | Agent Distribution / SDK | P1 标识 Agent 发行版，不代表被观测服务 |
+| `telemetry.distro.version` | string | Stable | Resource | Agent Distribution / SDK | P1 标识 Agent 发行版本，不能覆盖 `service.version` |
+| `vcs.ref.head.revision` | string | Release Candidate | Resource（适用时） | CI/CD / 构建系统 | P1 可选 VCS 修订；不替代独立 Release Event |
 
-**兼容性提示**：OTel 当前稳定字段为数组类型 `container.image.tags`；原项目实现手册中使用的 `container.image.tag` 必须在锁定 Collector 版本后明确兼容映射，不得假设两者是当前相同类型的字段。[OTel Container Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/container/)、[OTel Telemetry Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/telemetry/)、[OTel Kubernetes Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/)。
+表中只列本方案的主要关联字段。`k8s.statefulset.name`、`k8s.job.name`、`k8s.node.uid`、`cloud.account.id`、`cloud.availability_zone`、`host.name`、`cloud.resource_id` 等其它标准字段按上游语义使用，不因未列入此表而被禁用或强制要求。不存在的 Workload 类型必须省略。
+
+**来源与兼容性：** Collector 只在可信来源和确定 Pod/Container 的情况下补充基础设施信息，不覆盖应用 `service.*`。`container.image.tags` 是 `string[]`；旧版 Collector 的 `container.image.tag` 不能无测试就视为等价字段。实际属性是否由某个 Operator/Collector 版本产生，必须在锁定版本后验证。[Kubernetes](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/k8s.md) · [Container](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/container.md) · [Cloud](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/cloud.md) · [Telemetry](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/telemetry.md)。
 
 ### 3.3 多租户、多地域、多单元的字段分层
 
 这三类事实属于不同模型，不能使用单一的 Kubernetes Label 或 `service.namespace` 表示：
 
-| 分类 | 建议身份或 OTel 属性 | 是否为 OTel 标准 | 归属与约束 |
+| 部署维度 | 权威数据 | 是否参与服务身份 | Datafox 约束 |
 | --- | --- | --- | --- |
-| Datafox 平台 Tenant | Backend 已鉴权的 `tenant_id`（内部） | **不是 OTel Resource** | Backend 接入认证与授权确定，不允许任意 SDK Resource 改写 |
-| 业务应用/服务 | `service.namespace` + `service.name` | Stable | 跨 Region、Cell 保持同一逻辑服务身份 |
-| Environment | `deployment.environment.name` | Stable | 业务发布环境，不能拿来代表云地域 |
-| 云厂商/账号/Region/AZ | `cloud.provider`、`cloud.account.id`、`cloud.region`、`cloud.availability_zone` | OTel Development（当前快照） | 云资源位置；各厂商 Region 编码原样保留 |
-| K8s Cluster | `k8s.cluster.uid`、`k8s.cluster.name` | Stable | 物理集群；不是地域、不是单元 |
-| 跨云/IDC 逻辑地域 | `datafox.region.id`（P2 候选，不属于 v1 正式合同） | **Datafox 自定义提议，非标准 OTel** | **当前暂缓**；P0/P1 使用原生 `cloud.region`，不要求额外逻辑地域目录 |
-| 业务隔离单元 / Cell | `datafox.unit.id`（P1 可选属性提案） | **Datafox 自定义，非标准 OTel** | 稳定的流量/故障隔离单元；启用时作为查询和部署目标，不要求所有 Agent 感知 |
+| 平台 Tenant | Backend 已认证的 `tenant_id`（内部） | 是，可信命名空间 | 不信任 OTLP / Pod Label 自报，决定权限与数据驻留 |
+| 逻辑服务 | `service.namespace` + `service.name` | 是 | 跨 Environment / Region / Cell 保持逻辑身份 |
+| Environment | `deployment.environment.name` | 否 | 业务发布环境，不当云 Region |
+| 云 Region / AZ | `cloud.region` / `cloud.availability_zone` | 否 | 保留云厂商原生地域，不强制归一化 |
+| Kubernetes Cluster | `k8s.cluster.uid` / `k8s.cluster.name` | 否 | 独立运行位置，不等于 Tenant、Region、Cell |
+| 业务 Cell / Unit | `datafox.unit.id`（P1 可选提案） | 否 | 稳定的业务流量/故障隔离单元，不要求普通应用提供 |
+| 逻辑地域 | `datafox.region.id`（P2 候选，暂缓） | 否 | 未成为正式属性合同，先复用标准 `cloud.region` |
 
 Datafox Platform Tenant 与**被观测应用的业务客户租户** 是不同概念。后者可能随请求变化，不应在共享进程的全局 SDK Resource 中设置。Region/Cell 可以用于查询和发布定位，但输入的 Resource 值无权改变 Backend 的写入租户、读取权限或数据驻留路由。
 
@@ -117,17 +126,7 @@ OTel Registry 当前列出了 `deployment.id`、`deployment.name` 和 `deploymen
 
 **实例 ID 是身份，IP 是可变化的网络位置。** Pod IP 可能随着 Pod 重建而改变或复用；多个容器/进程可能共用 Pod IP，代理、NAT 和 Host Network 也会使所见 IP 与实际应用不一致。Datafox 不增加 `datafox.instance.ip`、`instance.ip` 等重复的私有字段，也不以 `(service.name, IP)` 唯一标识实例。
 
-| 标准 Resource 属性 | 类型 / 当前稳定性 | 权威来源 | Datafox 规范 |
-| --- | --- | --- | --- |
-| `service.instance.id` | string / Stable | SDK / Instrumentation | **推荐** 的服务实例 ID；须在相同服务的并存实例间唯一 |
-| `k8s.pod.uid` | string / Stable | Kubernetes Pod 元数据 | **优先关联键**；不能直接等同应用进程身份 |
-| `k8s.pod.ip` | string / Stable | Kubernetes `PodStatus.podIP` | **推荐补充** Pod 当前 IP；不当主键，不假定永不变化 |
-| `k8s.pod.name` / `k8s.namespace.name` | string / Stable | Kubernetes API | 可读定位；Pod Name 不能替代 UID |
-| `k8s.node.name` / `k8s.node.uid` | string / Stable | Kubernetes API | Node 关联；不把 Pod IP 当成 Node IP |
-| `k8s.container.name` / `container.id` | string / Stable | PodSpec / Container Runtime | 多容器区分，不能随机选取 Pod 中一个容器 |
-| `host.id` / `host.name` | string / Development | VM / 物理机 Host Resource | 非 Kubernetes/主机监控场景按需提供 |
-| `host.ip` | string[] / Development | Host 非回环接口 IP 集合 | **可选** 主机地址数组，不是单值“实例 IP” |
-| `cloud.resource_id` | string / Development | 云平台原生实例/资源身份 | 云资源定位按需提供，不替代 `service.instance.id` |
+**字段定义只维护一次：** `service.instance.id` 见 3.1；`k8s.pod.uid`、`k8s.pod.ip`、`host.ip` 等位置属性见 3.2。以下只说明身份、网络与采集的行为约束，不再次复制字段类型和稳定性。
 
 **唯一性不变量**：OTel 要求 `(service.namespace, service.name, service.instance.id)` 能唯一地区分并存服务实例。SDK 可以使用 UUID；Collector 只有在明确知道实际实例时才能填充，不应仅根据 Pod UID 或 IP 机械生成进程级 ID。Operator 的 Pod/Container 默认 ID 不是进程级唯一性保证：一个 Pod 中的不同容器通常可区分，而同一容器内的多个独立进程需要各自设置唯一值，并通过真实遥测校验。[OTel Service](https://opentelemetry.io/docs/specs/semconv/registry/attributes/service/)、[OTel K8s](https://opentelemetry.io/docs/specs/semconv/registry/attributes/k8s/)、[OTel Host](https://opentelemetry.io/docs/specs/semconv/registry/attributes/host/)、[OTel Container](https://opentelemetry.io/docs/specs/semconv/registry/attributes/container/)。
 
@@ -146,15 +145,21 @@ OTel Registry 当前列出了 `deployment.id`、`deployment.name` 和 `deploymen
 
 **域名属于访问入口或请求上下文，不天然属于一个服务实例。** 业务可以同时通过公网域名、内部 Kubernetes Service DNS、Ingress/Gateway 域名和服务发现名称访问；一个域名也可能由 Gateway 路由到多个逻辑服务。因此 `server.address`、`url.full`、`k8s.service.name` **不能取代** `service.name`、`service.namespace`、`service.instance.id` 或 `k8s.pod.uid`。P0 复用上游已有 HTTP/RPC 埋点，不增加 `datafox.service.domain`、`datafox.instance.domain` 等私有 Resource 字段。
 
-| 事实与场景 | OTel 属性 | 当前稳定性 | 位置与使用规范 |
-| --- | --- | --- | --- |
-| HTTP/RPC 调用的逻辑服务器域名或地址 | `server.address`、`server.port` | Stable | **Span/调用上下文**；优先使用已知主机名，只有 IP 时可保留 IP；禁止反向 DNS 查询来补域名 |
-| 请求完整 URL | `url.full` | Stable | Span；可能包含路径、查询参数和凭据，应执行敏感字段清理与访问控制 |
-| 从 URL 提取的域名 | `url.domain` | Development | 可选衍生查询维度，不成为 P0 必填字段；类型和上游版本须核验 |
-| DNS 查询名称 | `dns.question.name` | Development | **DNS 查询 Span/Metric 上下文**；仅在需要 DNS 诊断且有对应 Instrumentation 时启用 |
-| Kubernetes Service 对象 | `k8s.service.name`、`k8s.service.uid` | Development | Kubernetes 实体定位；不是实例的固定域名或业务 `service.name` |
-| 主机名称 | `host.name` | Development | **Host Resource**，表示主机名；不等同 HTTP Host、Service DNS 或应用逻辑服务名 |
-| HTTP 请求 Host 原始头 | `http.request.header.host` | Stable（通用 Header 模板） | **可选** 的请求属性，类型 `string[]`；只在明确业务需求下采集，不默认保留所有请求 Header |
+| Attribute | Type | OTel Stability | Scope | 属性来源 | Datafox 规则 |
+| --- | --- | --- | --- | --- | --- |
+| `server.address` | string | Stable | Span / 调用上下文 | 上游 Instrumentation | 已知域名优先，否则可为 IP；不强制反向 DNS |
+| `server.port` | int | Stable | Span / 调用上下文 | 上游 Instrumentation | 目标端口，不是服务实例身份 |
+| `client.address` | string | Stable | Span / 调用上下文 | 上游 Instrumentation | 可能受代理影响，遵守隐私与信任链 |
+| `network.local.address` | string | Stable | Span / 连接上下文 | 上游 Instrumentation | 本地连接地址，不当 Host Resource IP |
+| `network.peer.address` | string | Stable | Span / 连接上下文 | 上游 Instrumentation | 对端连接地址，不等于 `k8s.pod.ip` |
+| `url.full` | string | Stable | Span / 请求上下文 | 上游 Instrumentation | 完整 URL；敏感路径、参数和凭据须按 SemConv 清理 |
+| `url.domain` | string | Development | Span / URL 上下文 | 上游 Instrumentation | 可选派生域名，不默认写入服务 Resource |
+| `dns.question.name` | string | Development | DNS Span / Metric 上下文 | 上游 DNS Instrumentation | 可选诊断，不以 DNS 名作为服务唯一身份 |
+| `k8s.service.name` | string | Development | Resource（适用时） | Kubernetes Service 元数据 | Kubernetes Service 对象名，不等于 `service.name` |
+| `k8s.service.uid` | string | Development | Resource（适用时） | Kubernetes Service 元数据 | Service 对象 UID，不是 Pod / 进程 ID |
+| `http.request.header.host` | string[] | Stable（Header 模板） | Span / 请求上下文 | 上游 HTTP Instrumentation（Opt-In） | 仅在明确需要时采集，不使用可伪造 Host 决定权限 |
+
+`host.name` 若作为 Host Resource 使用，遵守上游 Host Registry，不能把 HTTP Host、Service DNS 或公网域名等同于主机名。`http.request.header.host` 按上游 `http.request.header.<key>` 模板类型定义。非上述字段依然遵守官方 SemConv，不自动进入 Datafox P0 必填集合。
 
 HTTP 客户端调用 `https://order-service.commerce.svc.cluster.local:8443/api/orders` 时，可在相应 Span 上观察到 `server.address=order-service.commerce.svc.cluster.local` 和 `server.port=8443`；`service.name=order-service` 仍属于**应用自己的 Resource**。在服务端，`server.address` 可能按可信代理传递的 `Forwarded` / `X-Forwarded-Host`、HTTP/2 `:authority` 或 `Host` 得到，属于请求视角；未受信任客户端可操纵 Host 类 Header，Datafox 不应把它作为未经校验的权威资产目录、路由目标或权限依据。[OTel HTTP SemConv](https://opentelemetry.io/docs/specs/semconv/http/http-spans/)、[Server Registry](https://opentelemetry.io/docs/specs/semconv/registry/attributes/server/)。
 
@@ -334,7 +339,7 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 
 统一标签规范 **尚未实现**。第一批工程测试必须证明：
 
-| Case | 输入 | 需要检查的结果 |
+| Case | 输入 / 场景 | 预期结果 |
 | --- | --- | --- |
 | Tag-01 | Java/Python/Node.js/.NET/Go 同一业务身份与版本 | 最终 OTLP Resource 的四个核心属性完全一致 |
 | Tag-02 | 跨 Namespace/Cluster 发布同一 Service | `service.namespace/name` 稳定，`k8s.*` 区分实际部署位置 |
@@ -355,7 +360,7 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 
 ### 8.2 不同标签来源的兼容性案例
 
-| Case | 输入来源 | 需要检查的结果 |
+| Case | 输入 / 场景 | 预期结果 |
 | --- | --- | --- |
 | Tag-11 | 自定义 `company.example.com/release` Label，经 Helm 模板映射到 Resource Annotation | 保留企业标签原值，最终 OTel `service.version` 等于目标制品版本 |
 | Tag-12 | 只提供显式 `OTEL_RESOURCE_ATTRIBUTES`，无任何推荐 Kubernetes Label | 正常进入 Datafox，SDK Resource 不被 Collector 改写 |
@@ -369,7 +374,7 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 
 ### 8.3 实例与 IP 合同测试
 
-| Case | 场景 | 预期 |
+| Case | 输入 / 场景 | 预期结果 |
 | --- | --- | --- |
 | Inst-01 | 两个业务 Worker 位于同一 Pod：先在不同容器，再在同一容器内作为独立进程 | Operator 默认容器级 ID 不保证同容器进程唯一；第二种必须由 SDK/进程显式提供不同 `service.instance.id`，E2E 检查输出 |
 | Inst-02 | Pod 重建后 IP 被复用 | 不因同 IP 合并两个 Pod UID 或错误关联历史遥测 |
@@ -384,7 +389,7 @@ Datafox 的查询层首先通过可信认证确定 Tenant，再按 Service、Env
 
 ### 8.4 域名、DNS 与 Endpoint 合同测试
 
-| Case | 场景 | 预期 |
+| Case | 输入 / 场景 | 预期结果 |
 | --- | --- | --- |
 | Domain-01 | HTTP Client 调用 `order-service.commerce.svc.cluster.local` | Span 的 `server.address` 为已知目标域名；Resource 的 `service.name` 不变 |
 | Domain-02 | 公网域名经 Ingress / Gateway 到两个业务服务 | 不将域名直接当作唯一 Service ID，关联须有实际路由证据 |
