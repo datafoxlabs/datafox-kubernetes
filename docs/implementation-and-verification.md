@@ -12,7 +12,7 @@ review_after: 2027-01-30
 > [!abstract] 使用方式
 > 这份手册面向平台工程师、Java Agent 工程师、SRE 和 Datafox Backend 工程师。先阅读 [架构设计](architecture.md)，再按本文推进 P0–P4。
 >
-> **注意**：下列镜像名称、Endpoint、命名空间和 API 域名是** 示例占位值**，未经实际部署验证；不要复制到生产环境直接执行。文中命令是人工实施/验证步骤，本次文档提交没有执行这些命令。
+> **注意**：下列镜像名称、Endpoint、命名空间和 API 域名是**示例占位值**，未经实际部署验证；不要复制到生产环境直接执行。文中命令是人工实施/验证步骤，本次文档提交没有执行这些命令。
 
 ## 1. 目标、前提与验收门槛
 
@@ -394,7 +394,7 @@ service:
 
 ### 4.3 实例身份与 Pod IP 的验收边界
 
-在最终 OTLP Resource 中，`service.instance.id`（若 SDK 提供）、`k8s.pod.uid`、`k8s.pod.ip` 是**不同的字段**，不可相互覆盖或推导。推荐在** 可信同集群入口**使用 `k8s.pod.uid` 作为 Collector Pod Association 的首选；自报 UID、IP 回退及连接 IP 不能绕过接入来源验证，必须考虑真实 Cluster、Pod 生命周期和观察时间，不能因代理连接源 IP 相同就认定同一个业务 Pod。`k8s.pod.ip` 若需要出现在最终 Resource 中，必须在锁定 Collector 版本验证 `extract.metadata` 显式包含该属性。
+在最终 OTLP Resource 中，`service.instance.id`（若 SDK 提供）、`k8s.pod.uid`、`k8s.pod.ip` 是**不同的字段**，不可相互覆盖或推导。推荐在**可信同集群入口**使用 `k8s.pod.uid` 作为 Collector Pod Association 的首选；自报 UID、IP 回退及连接 IP 不能绕过接入来源验证，必须考虑真实 Cluster、Pod 生命周期和观察时间，不能因代理连接源 IP 相同就认定同一个业务 Pod。`k8s.pod.ip` 若需要出现在最终 Resource 中，必须在锁定 Collector 版本验证 `extract.metadata` 显式包含该属性。
 
 `k8s.pod.ip` 的权威输入为 Kubernetes `status.podIP`，应通过 Operator/Collector 已有机制及锁定版本实际配置验证支持；不能直接从 `host.ip`、`server.address`、`network.peer.address` 或 Collector 的 Gateway 连接 IP 推导。多容器、HostNetwork、双栈及 IP 复用必须按 [实例与 IP 规范](unified-tagging-convention.md) 的 Inst-01–Inst-08 用例开展独立合同测试。
 
@@ -502,7 +502,7 @@ CI/CD 产生并持久化稳定的 `release_id`（制品或构建身份）、`dep
 
 **API 版本演进**：`/api/v1/deployment-events` 以版本化的请求 Schema 作为契约。同一 v1 内新增字段必须向后兼容且可选，不能悄悄改变现有字段的类型、枚举或幂等比较语义；破坏性变化使用新的 API 版本并与旧 Adapter 并行验收。幂等比较以已接受的规范化事件载荷为准，不因 JSON 字段顺序和空白差异而改变结果。Schema 和未知字段处理策略在 Backend 实现前通过请求/响应样例与契约测试确定，本文不假称服务端已经支持。
 
-**回滚语义**：恢复旧版本是** 新的 Deployment**。其 `trigger="rollback"`、`rollback_of_deployment_id="<original-id>"`，仍按 `started → succeeded/failed` 上报；原 Deployment 的历史 `succeeded` / `failed` 不改写。可选 `deployment.rolled_back` 是对原部署“已完成回滚”的追加关系事件，必须引用成功的回滚 Deployment ID（`related_deployment_id`）；它不改变原部署终态。该关系事件先于被引用的成功事件抵达时可留待关联，但不得呈现为已核实的回滚成功。重复 `deployment.rolled_back` 使用同一 `event_id` 执行通用幂等规则；不同事件引用不同回滚 Deployment 或更改原有不可变身份必须拒绝，避免形成两份相互矛盾的回滚证明。
+**回滚语义**：恢复旧版本是**新的 Deployment**。其 `trigger="rollback"`、`rollback_of_deployment_id="<original-id>"`，仍按 `started → succeeded/failed` 上报；原 Deployment 的历史 `succeeded` / `failed` 不改写。可选 `deployment.rolled_back` 是对原部署“已完成回滚”的追加关系事件，必须引用成功的回滚 Deployment ID（`related_deployment_id`）；它不改变原部署终态。该关系事件先于被引用的成功事件抵达时可留待关联，但不得呈现为已核实的回滚成功。重复 `deployment.rolled_back` 使用同一 `event_id` 执行通用幂等规则；不同事件引用不同回滚 Deployment 或更改原有不可变身份必须拒绝，避免形成两份相互矛盾的回滚证明。
 
 示例回滚 Deployment Event（示意增量字段，其余 `service`/`artifact`/`target` 仍必须完整）：
 
@@ -667,7 +667,7 @@ assert collector_output["service.version"] == sdk_output["service.version"]
 
 ### 7.3 配置来源与发布状态机负面测试
 
-**配置来源矩阵（隔离测试集群）**：对同一业务测试容器分别使用无显式资源、字面量 `env.value`、ConfigMap `valueFrom`、Secret `valueFrom`、`envFrom` 键冲突、无法读取的 `envFrom`、Java `JAVA_TOOL_OPTIONS.valueFrom`，以及只设置 `OTEL_RESOURCE_ATTRIBUTES.service.name` 但 Helm `instance` 与业务名不同的冲突输入。先断言发布校验的允许/拒绝，再在** 一次性测试命名空间**中对受影响的上游机制复现 Pod CREATE 与实际 Pod Spec。不得将负面输入交给生产 API Server 验证；同时需要验证未启用注入的同一输入不被 Datafox 的 CI 注入门禁误拒绝。
+**配置来源矩阵（隔离测试集群）**：对同一业务测试容器分别使用无显式资源、字面量 `env.value`、ConfigMap `valueFrom`、Secret `valueFrom`、`envFrom` 键冲突、无法读取的 `envFrom`、Java `JAVA_TOOL_OPTIONS.valueFrom`，以及只设置 `OTEL_RESOURCE_ATTRIBUTES.service.name` 但 Helm `instance` 与业务名不同的冲突输入。先断言发布校验的允许/拒绝，再在**一次性测试命名空间**中对受影响的上游机制复现 Pod CREATE 与实际 Pod Spec。不得将负面输入交给生产 API Server 验证；同时需要验证未启用注入的同一输入不被 Datafox 的 CI 注入门禁误拒绝。
 
 **发布事件矩阵（Backend 契约层）**：
 
@@ -685,7 +685,7 @@ assert collector_output["service.version"] == sdk_output["service.version"]
 | `deployment.rolled_back` 引用其他 Tenant 或变更关系目标 | 拒绝并保留原历史 |
 | 不同发布事件使用同一 `deployment_id` 却改变 Service/Artifact/Target | 拒绝并保留原身份 |
 
-另外针对 T14/T17 使用**两个不同 Pod UID 与跨 Tenant/Cluster 重叠 IP**、伪造 `k8s.pod.uid`、代理转发与可信直连入口做正反测试；针对 `k8s.pod.ip` 检查 Collector 的 `extract.metadata` 是否实际输出正确单值。针对 Inst-01 在同 Pod 不同容器和同容器多独立 SDK 进程两种情况下对照实例 ID。所有断言都是** 待实现的测试契约**，不是本 PR 的已通过结果。
+另外针对 T14/T17 使用**两个不同 Pod UID 与跨 Tenant/Cluster 重叠 IP**、伪造 `k8s.pod.uid`、代理转发与可信直连入口做正反测试；针对 `k8s.pod.ip` 检查 Collector 的 `extract.metadata` 是否实际输出正确单值。针对 Inst-01 在同 Pod 不同容器和同容器多独立 SDK 进程两种情况下对照实例 ID。所有断言都是**待实现的测试契约**，不是本 PR 的已通过结果。
 
 ## 8. 交付边界与里程碑
 
