@@ -6,11 +6,11 @@
   "design_id": "DD-001",
   "documents": [
     {
-      "bytes": 2827,
+      "bytes": 8044,
       "id": "DD-001",
       "path": "DESIGN.md",
       "role": "entrypoint",
-      "sha256": "3ea5d4a99791ddfc9617f673bade7b02c10733965ecf1aeed601d0a2cbcfa85a",
+      "sha256": "89368289b3082dbd268d8baac227b72f102f56afb140662f294f5192e51d57b2",
       "title": "Datafox Kubernetes Metadata and Release Integration"
     },
     {
