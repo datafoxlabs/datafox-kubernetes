@@ -28,3 +28,9 @@ jobs:
         run: |
           set -euo pipefail
           python3 /tmp/repofoundry/scripts/foundryctl.py --repo . spec validate
+      - name: Check rendered Markdown emphasis
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check markdown-it-py==4.0.0
+          python3 scripts/check_markdown_emphasis.py --self-test
+          python3 scripts/check_markdown_emphasis.py
