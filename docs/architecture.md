@@ -162,6 +162,8 @@ Datafox Java Agent 仅负责自己的 Java Instrumentation Distribution。Operat
 
 ## 4. 契约二：Collector 只丰富基础设施元数据
 
+Operator 能自动生成、条件注入或仅透传哪些属性，以及 Collector 需要补全哪些基础设施信息，详见[元数据采集设计](metadata-collection-design.md)。此处只规定架构责任，不维护第二份逐属性采集矩阵。
+
 本设计的 **D3** 将服务身份与 Kubernetes 拓扑信息分开维护。
 
 | 数据 | Source of truth | 进入遥测的位置 | 不变量 |
