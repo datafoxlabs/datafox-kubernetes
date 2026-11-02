@@ -13,7 +13,7 @@ REGISTRY = DOCS / "attribute-registry.md"
 TESTS = DOCS / "tagging-contract-tests.md"
 
 STANDARD_ROW = re.compile(
-    r"^\| \[`([a-z][a-z0-9_.]+)`\]\("
+    r"^\| \[`([a-z][a-z0-9_.<>-]+)`\]\("
     r"https://github\.com/open-telemetry/semantic-conventions/"
     r"blob/main/docs/registry/attributes/([a-z0-9]+)\.md\) \|"
 )
