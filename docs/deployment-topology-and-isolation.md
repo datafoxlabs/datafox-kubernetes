@@ -2,7 +2,7 @@
 
 > **状态：Architecture Proposal · 2026-10-31。** 本文件是 [统一标签规范](unified-tagging-convention.md) 的部署拓扑补充，与 [Kubernetes 系统架构](architecture.md) 共用服务身份和发布事件契约。
 >
-> **实施边界：** P0 确定可信租户、OTel 服务身份和标准 Region/Cluster 属性；P1 为存在单元化业务的服务提供**可选** `datafox.unit.id` 和发布事件 `target.unit_id`；P2 **暂缓**逻辑 Region、自建 Cell 注册中心、跨 Cluster/Region 拓扑目录和跨地域数据编排。
+> **实施边界：** P0 确定可信租户、OTel 服务身份和标准 Region/Cluster 属性；P1 为存在单元化业务的服务提供** 可选** `datafox.unit.id` 和发布事件 `target.unit_id`；P2 ** 暂缓**逻辑 Region、自建 Cell 注册中心、跨 Cluster/Region 拓扑目录和跨地域数据编排。
 >
 > 本文为数据模型与集成约束，不代表 Backend 隔离、Unit 查询、OTel SDK/Collector 配置或发布 API 已实现。**不注册或自动接受正式 RepoFoundry ADR。**
 
@@ -33,12 +33,12 @@ flowchart TB
 
 ### 2.1 Datafox Platform Tenant 是权限边界
 
-Datafox 的平台 Tenant ID 由**认证与服务端授权**确定，参与写入分区、查询过滤、发布事件关联和配额/保留策略。它属于 Backend 的可信上下文，**不要求作为 OTel Resource Attribute 发送**。
+Datafox 的平台 Tenant ID 由**认证与服务端授权** 确定，参与写入分区、查询过滤、发布事件关联和配额/保留策略。它属于 Backend 的可信上下文，**不要求作为 OTel Resource Attribute 发送**。
 
-- 客户端写入 `tenant_id`、`datafox.tenant.id`、任意 Pod Label 或 Collector 用户自定义字段，都**不能**覆盖已认证的 Tenant。
+- 客户端写入 `tenant_id`、`datafox.tenant.id`、任意 Pod Label 或 Collector 用户自定义字段，都**不能** 覆盖已认证的 Tenant。
 - 未认证或未授权的输入应按入口契约拒绝，不得自动写入默认 Tenant。
 - 多租户共享 Collector 的认证、出口路由及权限隔离需要独立验证；不能依靠 `service.namespace` 或开放的 OTLP Receiver 实施隔离。
-- **被观测 SaaS 应用的客户租户**与 Datafox 平台 Tenant 不同。每个请求的 customer/account ID 属于可选的请求级业务上下文，不放到共享进程的全局 SDK Resource；隐私与高基数处理另行设计。
+- **被观测 SaaS 应用的客户租户** 与 Datafox 平台 Tenant 不同。每个请求的 customer/account ID 属于可选的请求级业务上下文，不放到共享进程的全局 SDK Resource；隐私与高基数处理另行设计。
 
 本节描述**必须满足的权限不变量**，不是当前 Backend 已通过安全测试的结论。
 
@@ -65,7 +65,7 @@ Datafox 的平台 Tenant ID 由**认证与服务端授权**确定，参与写入
 
 ### 3.1 定义和最小属性
 
-**Cell / Unit** 是企业定义、用于隔离业务流量或故障影响范围的稳定逻辑单元。它**可以**作为独立发布、灰度、扩容或回滚目标，但不要求具备全部这些能力。Cell 既不是 Availability Zone，也不是 Kubernetes Namespace、Deployment 或 Cluster 的别名。
+**Cell / Unit** 是企业定义、用于隔离业务流量或故障影响范围的稳定逻辑单元。它** 可以**作为独立发布、灰度、扩容或回滚目标，但不要求具备全部这些能力。Cell 既不是 Availability Zone，也不是 Kubernetes Namespace、Deployment 或 Cluster 的别名。
 
 Datafox v1 提议仅增加一个自定义 OTel Resource Attribute：
 
@@ -89,7 +89,7 @@ Datafox v1 提议仅增加一个自定义 OTel Resource Attribute：
 | 仅能在可信 Cluster/Workload 上判断 Cell | 按需使用明确的单元级部署配置；后续可评估 Collector 可信拓扑补全 | P1 默认引入 Cluster→Cell 注册/映射服务 |
 | 无 Unit 的业务 | 不设置 `datafox.unit.id` | 根据 Namespace、Cluster 或 Pod 名猜测 Cell |
 
-Collector 仍以补充**基础设施属性**为主要职责。P1 **不要求** Collector 实现自定义 Cell 检测器；确有可信的 Workload→Cell 映射时可单独评审静态配置扩展，但不得修改 `service.*` 或凭 Unit 值授权。
+Collector 仍以补充**基础设施属性** 为主要职责。P1 **不要求** Collector 实现自定义 Cell 检测器；确有可信的 Workload→Cell 映射时可单独评审静态配置扩展，但不得修改 `service.*` 或凭 Unit 值授权。
 
 对于启用 Operator 自动注入的工作负载，`OTEL_RESOURCE_ATTRIBUTES.valueFrom`、`envFrom` 等已知兼容性风险仍按 [实施手册](implementation-and-verification.md) 的发布前检查处理；不能因为新增 Unit 反而强制 Agent 或 SDK 添加运行时 Kubernetes API Client。
 
@@ -105,7 +105,7 @@ flowchart LR
 
 Release 代表软件制品，Deployment 代表**一次发布尝试**。同一 Release 在不同 Cell 上独立灰度时使用不同 `deployment_id`，每条部署事件记录真实环境、Cluster、Namespace/Workload 和状态。
 
-Datafox Release Event API **提议**增加可选的 `target.unit_id`。该值来自已经确认的部署目标，应与工作负载实际 `datafox.unit.id` 对齐；没有启用 Cell 的发布不需要填该字段。事件的 Tenant Scope 始终来自发布 API 的可信认证上下文。
+Datafox Release Event API **提议** 增加可选的 `target.unit_id`。该值来自已经确认的部署目标，应与工作负载实际 `datafox.unit.id` 对齐；没有启用 Cell 的发布不需要填该字段。事件的 Tenant Scope 始终来自发布 API 的可信认证上下文。
 
 | 情况 | 正确的发布表示 |
 | --- | --- |
@@ -127,7 +127,7 @@ Region 和 Unit 不参与创建新的逻辑 Service；同一个 Trace 可跨多�
 
 `datafox.unit.id` 应是**低基数的部署维度**，不能为每次请求、每个 Pod 或每位客户随机生成。Metric 聚合应按明确的维度预算进行，不自动将所有 Resource 属性扩展成数据点标签。
 
-**授权与数据驻留**由认证、租户上下文和区域入口/存储策略实施。OTLP Resource 中的 `datafox.unit.id` 或 `cloud.region` 是关联事实，不能成为授予访问权限或跨地域复制数据的依据。
+**授权与数据驻留** 由认证、租户上下文和区域入口/存储策略实施。OTLP Resource 中的 `datafox.unit.id` 或 `cloud.region` 是关联事实，不能成为授予访问权限或跨地域复制数据的依据。
 
 ## 6. 交付顺序与非目标
 
@@ -158,7 +158,7 @@ P2 的 `datafox.region.id` **尚不构成正式属性契约**；如果后来确�
 | Topo-11 | 业务 customer_id 被误用为全局 Resource | 受管理接入预检按策略处理，防止高基数与隐私问题 |
 | Topo-12 | 客户端伪造 `cloud.region` 企图改变驻留区域 | 后端路由以可信策略为准，不受 Resource 影响 |
 
-Topo-01–Topo-03 和 Topo-12 是 **P0 安全与语义合同**；Topo-04–Topo-10 是 **P1 可选 Cell 功能启用时的合同**；复杂跨云逻辑地域的拓扑目录不进入 P0/P1 测试门禁。全部测试**尚未执行**，需要后续 CI/Backend/Collector 证据。
+Topo-01–Topo-03 和 Topo-12 是 **P0 安全与语义合同**；Topo-04–Topo-10 是 **P1 可选 Cell 功能启用时的合同**；复杂跨云逻辑地域的拓扑目录不进入 P0/P1 测试门禁。全部测试** 尚未执行**，需要后续 CI/Backend/Collector 证据。
 
 ## 8. 源码依据与未验证事项
 
@@ -168,4 +168,4 @@ Topo-01–Topo-03 和 Topo-12 是 **P0 安全与语义合同**；Topo-04–Topo-
 - [OTel Deployment Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/) — Environment 与部署字段的演进。
 - [OTel Operator Resource Attributes（固定快照）](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md) — 注入时的 Resource 来源与优先级。
 
-**已形成架构决策方向**：P0 只复用标准身份与可信租户，P1 允许单个可选 Unit 属性，P2 需求驱动。**仍待评审/实现**：Unit ID 的实际业务来源、Backend 的查询与 Release API 字段、跨地域授权与数据驻留。**未执行**任何 Kubernetes/SDK/Collector/Backend E2E 或权限测试。
+**已形成架构决策方向**：P0 只复用标准身份与可信租户，P1 允许单个可选 Unit 属性，P2 需求驱动。** 仍待评审/实现**：Unit ID 的实际业务来源、Backend 的查询与 Release API 字段、跨地域授权与数据驻留。** 未执行**任何 Kubernetes/SDK/Collector/Backend E2E 或权限测试。
