@@ -31,11 +31,13 @@ flowchart TB
 
 ## 2. P0 — 可信租户、服务身份和标准 Region
 
+本文的 P0、P1、P2 是 Datafox **交付阶段**，不等于 OTel Attribute Requirement Level，也不表示所有应用必须提供 Region、Cluster 或 Cell 属性。无云 Region 的自建机房或非 Kubernetes 服务可以保留相应字段缺失状态。
+
 ### 2.1 Datafox Platform Tenant 是权限边界
 
 Datafox 的平台 Tenant ID 由**认证与服务端授权** 确定，参与写入分区、查询过滤、发布事件关联和配额/保留策略。它属于 Backend 的可信上下文，**不要求作为 OTel Resource Attribute 发送**。
 
-- 客户端写入 `tenant_id`、`datafox.tenant.id`、任意 Pod Label 或 Collector 用户自定义字段，都**不能** 覆盖已认证的 Tenant。
+- 客户端写入 `tenant_id`、`datafox.tenant.id`、任意 Pod Label 或 Collector 用户自定义字段，都**不能**覆盖已认证的 Tenant。
 - 未认证或未授权的输入应按入口契约拒绝，不得自动写入默认 Tenant。
 - 多租户共享 Collector 的认证、出口路由及权限隔离需要独立验证；不能依靠 `service.namespace` 或开放的 OTLP Receiver 实施隔离。
 - **被观测 SaaS 应用的客户租户** 与 Datafox 平台 Tenant 不同。每个请求的 customer/account ID 属于可选的请求级业务上下文，不放到共享进程的全局 SDK Resource；隐私与高基数处理另行设计。
@@ -87,7 +89,7 @@ Datafox v1 只提议一个自定义属性：`datafox.unit.id`，类型为 `strin
 | 仅能在可信 Cluster/Workload 上判断 Cell | 按需使用明确的单元级部署配置；后续可评估 Collector 可信拓扑补全 | P1 默认引入 Cluster→Cell 注册/映射服务 |
 | 无 Unit 的业务 | 不设置 `datafox.unit.id` | 根据 Namespace、Cluster 或 Pod 名猜测 Cell |
 
-Collector 仍以补充**基础设施属性** 为主要职责。P1 **不要求** Collector 实现自定义 Cell 检测器；确有可信的 Workload→Cell 映射时可单独评审静态配置扩展，但不得修改 `service.*` 或凭 Unit 值授权。
+Collector 仍以补充 **基础设施属性** 为主要职责。P1 **不要求** Collector 实现自定义 Cell 检测器；确有可信的 Workload→Cell 映射时可单独评审静态配置扩展，但不得修改 `service.*` 或凭 Unit 值授权。
 
 对于启用 Operator 自动注入的工作负载，`OTEL_RESOURCE_ATTRIBUTES.valueFrom`、`envFrom` 等已知兼容性风险仍按 [实施手册](implementation-and-verification.md) 的发布前检查处理；不能因为新增 Unit 反而强制 Agent 或 SDK 添加运行时 Kubernetes API Client。
 
@@ -131,7 +133,7 @@ Region 和 Unit 不参与创建新的逻辑 Service；同一个 Trace 可跨多�
 
 | 阶段 | 交付范围 | 明确暂缓 |
 | --- | --- | --- |
-| **P0 — 必须** | Tenant 可信鉴权边界；标准 OTel 服务身份、环境、版本；标准云/集群属性和缺失处理 | 自定义 Region；Cell 必填；跨地域管理系统 |
+| **P0 — 基础能力** | Tenant 可信鉴权边界；标准 OTel 服务身份、环境、版本；标准云/集群属性和缺失处理（适用时） | 自定义 Region；Cell 必填；跨地域管理系统 |
 | **P1 — 有单元需求时** | 可选 `datafox.unit.id`；部署配置注入；可选 Release Event `target.unit_id`；Unit 查询过滤与分组 | Cell 注册中心、通用映射 DSL、Agent 内 Cell Detector |
 | **P2 — 需求驱动** | 必须有跨云逻辑地域/复杂映射的实际业务证据，才单独设计 `datafox.region.id`、Cell/Cluster 目录及跨区域编排 | 默认预装、提前定义全套运行时扩展 |
 
