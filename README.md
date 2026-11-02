@@ -8,10 +8,7 @@ Datafox 的 Kubernetes 可观测性集成项目。以 **OpenTelemetry 标准** �
 
 | 目的 | 权威文档 |
 | --- | --- |
-| 定义应用身份、环境、版本与 Datafox 接入条件 | [统一语义合同](docs/unified-tagging-convention.md) |
-| 查阅属性 Key、类型、稳定性、作用域及来源 | [属性登记表](docs/attribute-registry.md) |
-| Kubernetes Label/Annotation 如何转成 Resource、冲突时怎么办 | [Kubernetes 资源映射](docs/kubernetes-resource-mapping.md) |
-| Tag/Inst/Domain 语义合同测试 | [语义验收测试](docs/tagging-contract-tests.md) |
+| 定义应用身份、环境、版本、实例/IP、域名及 OTel Resource 属性 | [统一标签规范](docs/unified-tagging-convention.md) |
 | 理解控制面、数据面、Operator/Collector 分工与 Release Tracking | [系统架构设计](docs/architecture.md) |
 | 定义可信 Tenant、云 Region、可选 Cell 的作用域和隔离边界 | [部署拓扑与隔离模型](docs/deployment-topology-and-isolation.md) |
 | 查看示例配置、发布前预检、Canary/回滚及待执行测试 | [实施与验证手册](docs/implementation-and-verification.md) |
