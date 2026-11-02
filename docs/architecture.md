@@ -258,7 +258,7 @@ Datafox 服务身份与物理部署、故障隔离和租户权限必须拆开：
 
 - **租户隔离**由 Backend 的认证租户上下文确定，不允许 SDK/Collector 传入的任意 Resource Attribute 改变存储分区或读取授权。
 - **部署位置**使用 OTel `cloud.region`、`cloud.availability_zone`（当前 Development）与 `k8s.cluster.uid`（Stable）等标准属性；不能把 `deployment.environment.name` 当作 Region。
-- **业务单元（Cell）**是可选的一等部署维度。仅在存在稳定的流量/故障隔离单元时启用 `datafox.unit.id`（Datafox 自定义属性提案），按 `(tenant, environment, unit.id)` 保持唯一；不要求所有语言 Agent 开发 Cell Detector。
+- **业务单元（Cell）** 是可选的一等部署维度。仅在存在稳定的流量/故障隔离单元时启用 `datafox.unit.id`（Datafox 自定义属性提案），按 `(tenant, environment, unit.id)` 保持唯一；不要求所有语言 Agent 开发 Cell Detector。
 - **Release/Deployment 关系**：同一服务的相同版本在不同 Region/Cell 独立发布，是同一逻辑服务对应多个 Deployment。启用 Cell 时，Release API 可选增加 `target.unit_id`；无 Cell 发布无需此字段。不同发布尝试分配独立 Deployment ID。
 
 **实施顺序**：P0 复用 OTel 标准 Region/Cluster 属性并建立 Tenant 鉴权约束；P1 仅提供可选 `datafox.unit.id` 和发布 `target.unit_id`；P2 有真实跨云归一化需求时才重新评审 `datafox.region.id` 和复杂拓扑目录。一个 Cell 可以跨多个 Cluster，一个 Cluster 可以包含多个 Cell；P1 不建设 Cell 注册中心。完整身份边界见 [多租户、多地域、多单元部署模型](deployment-topology-and-isolation.md)。
