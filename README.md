@@ -23,7 +23,7 @@ Datafox 的 Kubernetes 可观测性集成项目。以 **OpenTelemetry 标准** �
 - **发布事实**：CI/CD 上报 Release/Deployment Event；一次制品构建、一次部署尝试与一个运行中的 Pod 具有不同身份和生命周期。
 - **拓扑与权限**：Tenant 来自可信认证；Region 使用 OTel `cloud.region`；仅存在实际单元化业务需求时启用可选 `datafox.unit.id`。
 
-以上为**设计契约**，不是已实施功能。D1–D4 是产品层已讨论的设计决策编号，** 不是**已注册或批准的 RepoFoundry ADR。
+以上为**设计契约**，不是已实施功能。D1–D4 是产品层已讨论的设计决策编号，**不是**已注册或批准的 RepoFoundry ADR。
 
 ## 工程边界与验证
 

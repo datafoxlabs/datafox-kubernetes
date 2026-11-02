@@ -17,7 +17,7 @@
 - **它运行在哪里？** Cluster、Namespace、Workload、Pod、必要时 Container。
 - **它属于哪次交付？** Git Commit、镜像 Digest、部署目标、开始与结束事件。
 
-这三组事实来自不同的系统，生命周期也不同。服务版本属于**应用制品身份**，Pod 属于** 运行实例**，Deployment Event 属于** 交付历史**。把三者合并成一个标签，会在滚动升级、回滚、跨环境发布或同版本重复部署时产生错误归因。
+这三组事实来自不同的系统，生命周期也不同。服务版本属于**应用制品身份**，Pod 属于**运行实例**，Deployment Event 属于**交付历史**。把三者合并成一个标签，会在滚动升级、回滚、跨环境发布或同版本重复部署时产生错误归因。
 
 **设计主张：应用身份在 SDK Resource 中确定；Kubernetes 拓扑由 Collector 补充；CI/CD 负责发布事实。** Datafox 只在平台配置与 Backend 建立这些事实之间的契约，不为每种语言重新实现 Kubernetes 探测。
 
@@ -97,7 +97,7 @@ flowchart TB
     CI -->|"Deployment Events"| Release
 ~~~
 
-图中 **Pod Admission** 发生在新 Pod 创建时，** 遥测导出**发生在业务进程运行时，** 发布事件上报**发生在 CI/CD 交付过程中。三者互不替代。
+图中 **Pod Admission** 发生在新 Pod 创建时，**遥测导出**发生在业务进程运行时，**发布事件上报**发生在 CI/CD 交付过程中。三者互不替代。
 
 系统有两条控制路径：
 
@@ -124,7 +124,7 @@ flowchart LR
 
 ### 3.1 版本来源与优先级
 
-本设计保留 **D1：推荐使用标准 Pod Label + OTel Resource Annotation** 的架构决策。标准字段是默认接入路径，** 不是强制的 Kubernetes 标签命名政策**。企业自定义 Label 可由已有 Helm、Kustomize 或 CI/CD 模板转换为标准 Resource Annotation；已显式提供 OTel SDK Resource 的应用不需要为 Datafox 添加重复 Label。[字段规范与适配路径](unified-tagging-convention.md)。
+本设计保留 **D1：推荐使用标准 Pod Label + OTel Resource Annotation** 的架构决策。标准字段是默认接入路径，**不是强制的 Kubernetes 标签命名政策**。企业自定义 Label 可由已有 Helm、Kustomize 或 CI/CD 模板转换为标准 Resource Annotation；已显式提供 OTel SDK Resource 的应用不需要为 Datafox 添加重复 Label。[字段规范与适配路径](unified-tagging-convention.md)。
 
 | 层级 | 来源 | 作用 |
 | --- | --- | --- |
@@ -175,7 +175,7 @@ Datafox Java Agent 仅负责自己的 Java Instrumentation Distribution。Operat
 
 Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Collector 是基础设施补全层”表示**责任与覆盖边界**，不意味着 SDK Resource 绝不能包含 Pod UID 等基础设施属性。
 
-`k8sattributes` 通过 Kubernetes API 建立 Pod 元数据缓存，并按照配置的匹配规则关联接收到的 Resource。推荐的技术匹配顺序为 **Pod UID → Pod IP → 连接 IP**，但** 仅在信任边界允许的范围内**使用。Resource 中的 Pod UID/IP 是可由上报方声明的数据，不等同可信的 Kubernetes 身份；接收端必须先识别可信的采集入口、Cluster 和访问主体。跨租户、跨集群或经过代理/多级 Collector 的 Gateway 不得把未经验证的 UID/IP 或代理连接 IP 直接当作业务 Pod 的权威身份；必要时仅保留原始遥测并标记关联缺失。最接近应用的可信入口应尽早完成 Pod 元数据关联，后续链路保留已确认的关联结果。仅凭 Pod UID 不能区分同 Pod 的两个业务容器，镜像/容器属性还需 `k8s.container.name` 或 `container.id`。Pod 关联不授予 Datafox Tenant 权限，也不能改变已鉴权的数据驻留路由。[上游依据：k8sattributes](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/d63fa334e03aa36d0ac2cd29af05cc8f60d164fc/processor/k8sattributesprocessor/README.md)。
+`k8sattributes` 通过 Kubernetes API 建立 Pod 元数据缓存，并按照配置的匹配规则关联接收到的 Resource。推荐的技术匹配顺序为 **Pod UID → Pod IP → 连接 IP**，但**仅在信任边界允许的范围内**使用。Resource 中的 Pod UID/IP 是可由上报方声明的数据，不等同可信的 Kubernetes 身份；接收端必须先识别可信的采集入口、Cluster 和访问主体。跨租户、跨集群或经过代理/多级 Collector 的 Gateway 不得把未经验证的 UID/IP 或代理连接 IP 直接当作业务 Pod 的权威身份；必要时仅保留原始遥测并标记关联缺失。最接近应用的可信入口应尽早完成 Pod 元数据关联，后续链路保留已确认的关联结果。仅凭 Pod UID 不能区分同 Pod 的两个业务容器，镜像/容器属性还需 `k8s.container.name` 或 `container.id`。Pod 关联不授予 Datafox Tenant 权限，也不能改变已鉴权的数据驻留路由。[上游依据：k8sattributes](https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/d63fa334e03aa36d0ac2cd29af05cc8f60d164fc/processor/k8sattributesprocessor/README.md)。
 
 ### 4.1 单层与多层 Collector
 
@@ -186,7 +186,7 @@ Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Co
 
 ### 4.2 实例身份与网络地址的分工
 
-**服务实例不是 IP 地址。** 实例层应优先保留 SDK 提供的 `service.instance.id`；在 Kubernetes 中，`k8s.pod.uid` 是 Pod 的稳定关联键，`k8s.pod.ip` 只是网络位置，`k8s.node.name` / `k8s.node.uid` 表示 Node。锁定 Operator 默认用 Namespace、Pod Name、Container Name 生成实例 ID：足以区分不同容器，但不能区分** 同一容器内独立 SDK 进程**，这种情况须由进程自身提供不同 ID 并检查实际 OTLP。Pod UID 不应无条件转成进程级 `service.instance.id`。[Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L719-L738)。
+**服务实例不是 IP 地址。** 实例层应优先保留 SDK 提供的 `service.instance.id`；在 Kubernetes 中，`k8s.pod.uid` 是 Pod 的稳定关联键，`k8s.pod.ip` 只是网络位置，`k8s.node.name` / `k8s.node.uid` 表示 Node。锁定 Operator 默认用 Namespace、Pod Name、Container Name 生成实例 ID：足以区分不同容器，但不能区分**同一容器内独立 SDK 进程**，这种情况须由进程自身提供不同 ID 并检查实际 OTLP。Pod UID 不应无条件转成进程级 `service.instance.id`。[Operator 源码](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L719-L738)。
 
 对于 VM/物理机，按需使用 OTel `host.id` / `host.ip`（后者为 `string[]`）；针对某一次请求/连接的 `server.address`、`client.address`、`network.peer.address` 不应写成进程级 Resource。Kubernetes Pod IP 可以被回收复用，Backend 关联必须依赖 Pod UID、Cluster 和有效时间，而不是仅用 IP 拼接实例 ID。
 
@@ -323,7 +323,7 @@ sequenceDiagram
 
 上游 Operator 对已有 `OTEL_RESOURCE_ATTRIBUTES` 环境变量可能在原 `value` 后追加属性。如果它原本来自 `valueFrom`，则可能形成 Kubernetes 不允许的非空 `value` + `valueFrom` 组合，**直接阻断 Pod CREATE**。`envFrom` 内的同名键也可能被显式 `env` 注入遮蔽。对于 Java，`JAVA_TOOL_OPTIONS.valueFrom` 可能触发 Operator Mutation 错误，使 Pod 无 Agent 启动。[上游依据：SDK 注入](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/sdk.go#L502-L566)、[Java 注入](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/internal/instrumentation/javaagent.go)。
 
-因此 Datafox 预检只针对**启用注入的目标容器**：检查最终渲染 Pod Template 的 `env` / `envFrom` / `valueFrom`、ConfigMap/Secret 的实际键集合和来源一致性；无法证明兼容时拒绝** 本次自动注入发布**，不拒绝未启用注入的业务。具体支持矩阵和错误测试位于实施手册第 3.1.1 节。
+因此 Datafox 预检只针对**启用注入的目标容器**：检查最终渲染 Pod Template 的 `env` / `envFrom` / `valueFrom`、ConfigMap/Secret 的实际键集合和来源一致性；无法证明兼容时拒绝**本次自动注入发布**，不拒绝未启用注入的业务。具体支持矩阵和错误测试位于实施手册第 3.1.1 节。
 
 ### 7.3 生命周期边界与回滚
 
