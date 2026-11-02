@@ -25,6 +25,10 @@ The tagging convention also covers **service domains and DNS**: use standard req
 | Collector | Enrich Kubernetes infrastructure attributes; never rewrite `service.name` / `service.version` |
 | Release events | CI/CD actively reports deployment lifecycle to Datafox Backend |
 
+## Repository engineering
+
+[RepoFoundry Engineering Harness and documentation map](docs/index.md) provide the Codex/Portable agent workflow, Engineering Specs, governance indexes and validation CI. These support the design; they do not constitute Kubernetes runtime or release verification.
+
 ## Documentation
 
 - **[Architecture and design decisions (中文)](docs/architecture.md)** — The problem, system roles, data flows, language integration, release identity, failure domains and upstream source evidence.
