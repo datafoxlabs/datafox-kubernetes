@@ -396,7 +396,7 @@ service:
 
 在最终 OTLP Resource 中，`service.instance.id`（若 SDK 提供）、`k8s.pod.uid`、`k8s.pod.ip` 是**不同的字段**，不可相互覆盖或推导。推荐在**可信同集群入口**使用 `k8s.pod.uid` 作为 Collector Pod Association 的首选；自报 UID、IP 回退及连接 IP 不能绕过接入来源验证，必须考虑真实 Cluster、Pod 生命周期和观察时间，不能因代理连接源 IP 相同就认定同一个业务 Pod。`k8s.pod.ip` 若需要出现在最终 Resource 中，必须在锁定 Collector 版本验证 `extract.metadata` 显式包含该属性。
 
-`k8s.pod.ip` 的权威输入为 Kubernetes `status.podIP`，应通过 Operator/Collector 已有机制及锁定版本实际配置验证支持；不能直接从 `host.ip`、`server.address`、`network.peer.address` 或 Collector 的 Gateway 连接 IP 推导。多容器、HostNetwork、双栈及 IP 复用必须按 [实例与 IP 规范](unified-tagging-convention.md) 的 Inst-01–Inst-08 用例开展独立合同测试。
+`k8s.pod.ip` 的权威输入为 Kubernetes `status.podIP`，应通过 Operator/Collector 已有机制及锁定版本实际配置验证支持；不能直接从 `host.ip`、`server.address`、`network.peer.address` 或 Collector 的 Gateway 连接 IP 推导。多容器、HostNetwork、双栈及 IP 复用必须按[实例与 IP 验收合同](tagging-contract-tests.md#13-实例与-ip-合同测试)中的 Inst-01–Inst-08 用例开展独立合同测试。
 
 实例/网络元数据缺失时保留 SDK 原始 Resource，不制造 `datafox.instance.ip`，也不把 IP 地址引入所有高基数 Metrics 默认分组。**这些测试尚未执行**，不改变既有 T01–T44 的验收记录。
 
@@ -404,7 +404,7 @@ service:
 
 Datafox **不将域名强制注入应用 Resource**。HTTP/gRPC 的逻辑服务目标应使用上游标准 `server.address` / `server.port`；URL 及 DNS 查询属性按实际请求/解析上下文采集。正常 Kubernetes Service DNS 与 Headless Service DNS 可能分别解析为 ClusterIP 或多个 Pod IP，不能把访问域名推导为固定 `k8s.pod.ip`。不要求所有业务统一域名命名，也不硬编码集群 DNS 域后缀。
 
-在 Kind/测试环境验证 [Unified Tagging Convention](unified-tagging-convention.md) 的 Domain-01–Domain-09 合同，包括代理/Ingress、Host Header 伪造、同名 DNS 跨 Tenant、敏感 `url.full`、无域名但只有 IP，以及 DNS 观察行为。**这些测试是后续 E2E 门禁提案，目前尚未执行**，不改变 T01–T44 的现有编号。
+在 Kind/测试环境验证[域名与 DNS 验收合同](tagging-contract-tests.md#14-域名dns-与-endpoint-合同测试)中的 Domain-01–Domain-09，包括代理/Ingress、Host Header 伪造、同名 DNS 跨 Tenant、敏感 `url.full`、无域名但只有 IP，以及 DNS 观察行为。**这些测试是后续 E2E 门禁提案，目前尚未执行**，不改变 T01–T44 的现有编号。
 
 ## 5. CI/CD：版本校验与主动事件上报
 
