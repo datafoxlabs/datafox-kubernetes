@@ -10,6 +10,7 @@
 | --- | --- | --- |
 | Datafox 的 `service.name`、`service.namespace`、`service.version` 如何定义和注入？实例、IP、URL、DNS 怎么区分？ | [统一标签规范](unified-tagging-convention.md) | OTel Resource/Span 语义、属性所有权、Label/Annotation 适配、跨信号规则及 Tag/Inst/Domain 合同 |
 | 为什么复用 Operator？SDK、Collector、CI/CD、Backend 如何协作？发生故障时谁负责？ | [系统架构](architecture.md) | 控制面/数据面、D1–D4 产品设计决策、接口与生命周期、故障域与架构取舍 |
+| 哪些属性由 Operator 自动注入，哪些由 Collector 补全？ | [元数据采集设计](metadata-collection-design.md) | SDK/Operator/Collector/CI 的采集机制、能力边界、前置条件与冲突处理 |
 | Tenant、Cloud Region、Cluster、Cell 的关系是什么？哪些可以作为授权或部署目标？ | [部署拓扑与隔离模型](deployment-topology-and-isolation.md) | 可信租户、数据驻留边界、标准地域、可选 `datafox.unit.id`、Topo 合同 |
 | 具体怎么安装、预检、金丝雀上线、回滚或验收？ | [实施与验证手册](implementation-and-verification.md) | Operator/Collector 配置示例、发布事件状态机、CI 预检、T01–T44 计划验收与证据要求 |
 
@@ -23,6 +24,7 @@
 | --- | --- | --- |
 | OTel 字段名、类型、稳定性和版本来源 | [统一标签规范](unified-tagging-convention.md) | 引用章节，不另造平行字段表 |
 | Operator/SDK/Collector/CI/CD/Backend 的架构职责 | [系统架构](architecture.md) | 引用组件与数据流，不把实现示例当成架构 |
+| 属性采集机制、自动注入与 Collector 补全 | [元数据采集设计](metadata-collection-design.md) | 不重复定义属性 Type/Stability；不复制实施手册的 YAML |
 | Tenant/Region/Cell 身份作用域和阶段划分 | [拓扑与隔离模型](deployment-topology-and-isolation.md) | 使用相同定义，避免另建 Region/Cell 目录或强制字段 |
 | Manifest、发布前校验、Canary/回滚操作、事件状态转移明细 | [实施与验证手册](implementation-and-verification.md) | 架构文档只维护不变量与接口边界 |
 | RepoFoundry ADR/Design/ExecPlan 的批准与生命周期状态 | 下方对应**受治理索引与工件** | D1–D4 不冒用 ADR ID，也不能从文档讨论推断批准 |
@@ -52,7 +54,7 @@
 
 ## 5. 文档变更规则
 
-1. **先确认职责**：字段语义改统一标签规范；架构边界改系统架构；部署拓扑改隔离模型；可执行步骤和验收改实施手册。导航页只更新指向和阅读路径。
+1. **先确认职责**：字段语义改统一标签规范；属性采集机制改元数据采集设计；架构边界改系统架构；部署拓扑改隔离模型；可执行步骤和验收改实施手册。导航页只更新指向和阅读路径。
 2. **维持链接稳定**：既有四份设计文档保留在 `docs/` 根目录。只有确有必要且补齐所有相对链接、外部引用迁移方案时才讨论重命名或移动。
 3. **保留真实状态**：明确区分 Proposal、已确认设计方向、已实现、已实际测试与未验证；运行命令、测试结果、生产安全或版本兼容结论必须有本次验证证据。
 4. **遵守权威来源**：运行时以锁定版本的 OTel API/Operator/Collector 为准；RepoFoundry 治理状态不能靠手写 `ADR-001` 或文档标题代替。
