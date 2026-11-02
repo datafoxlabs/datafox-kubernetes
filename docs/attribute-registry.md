@@ -52,6 +52,7 @@ Datafox 不以任何 `datafox.*` 私有属性替代上游 `service.*`、`k8s.*` 
 | [`k8s.node.uid`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/k8s.md) | Resource | `string` | Stable | P1 | Kubernetes API/Collector；Node UID；不把 Pod IP 当 Node IP |
 | [`k8s.container.name`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/k8s.md) | Resource | `string` | Stable | P1 | PodSpec/SDK/Collector；Container 区分；不能在多容器 Pod 中盲选 |
 | [`k8s.service.name`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/k8s.md) | Resource（适用时） | `string` | Development | P1 可选 | Kubernetes API/Collector；Kubernetes Service 名；不能替代应用 `service.name` |
+| [`k8s.service.uid`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/k8s.md) | Resource（适用时） | `string` | Development | P1 可选 | Kubernetes API/Collector；Kubernetes Service 对象 UID，不是应用实例或域名标识 |
 
 ## 4. 容器、主机与云环境
 
@@ -80,7 +81,9 @@ Datafox 不以任何 `datafox.*` 私有属性替代上游 `service.*`、`k8s.*` 
 | [`network.local.address`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/network.md) | Span/网络连接上下文 | `string` | Stable | P0 按 Instrumentation | 上游 Instrumentation；连接本地地址，不是主机或服务实例身份 |
 | [`network.peer.address`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/network.md) | Span/网络连接上下文 | `string` | Stable | P0 按 Instrumentation | 上游 Instrumentation；连接对端地址，不是 `k8s.pod.ip` 的替代 |
 | [`url.full`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/url.md) | Span/请求上下文 | `string` | Stable | P0 按 Instrumentation | 上游 Instrumentation；实际 URL；敏感信息按对应 SemConv 清理 |
+| [`url.domain`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/url.md) | Span/请求上下文 | `string` | Development | P1 可选 | 上游 URL SemConv；从 URL 中提取的域名，不作为服务 Resource 或默认低基数指标标签 |
 | [`dns.question.name`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/dns.md) | Span/DNS 查询上下文 | `string` | Development | P1 | 上游 DNS Instrumentation；DNS 查询名，不自动提升为服务 Resource |
+| [`http.request.header.<key>`](https://github.com/open-telemetry/semantic-conventions/blob/main/docs/registry/attributes/http.md) | Span/请求上下文（模板） | `string[]` | Stable | P1 Opt-In | 上游 HTTP SemConv；包括需明确采集时的 `http.request.header.host`；默认不全量收集请求 Header，禁止作为 Tenant 授权或服务身份依据 |
 
 ## 6. Datafox 自定义属性与非 Resource 身份
 
