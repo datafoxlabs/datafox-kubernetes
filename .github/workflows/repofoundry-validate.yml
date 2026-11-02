@@ -34,3 +34,7 @@ jobs:
           python3 -m pip install --disable-pip-version-check markdown-it-py==4.0.0
           python3 scripts/check_markdown_emphasis.py --self-test
           python3 scripts/check_markdown_emphasis.py
+      - name: Validate tagging registry and contract documentation
+        run: |
+          set -euo pipefail
+          python3 scripts/check_tagging_contracts.py
