@@ -1,14 +1,16 @@
 # Datafox Kubernetes — Documentation Map
 
 Status: architecture documented; implementation pending  
-Last reviewed: 2026-10-30
+Last reviewed: 2026-11-02
 
 ## Project knowledge
 
-- [README](../README.md) — repository purpose and approved integration boundaries.
+- [README](../README.md) — repository purpose and documented integration boundaries.
 - [Architecture Map](../ARCHITECTURE.md) — responsibilities, invariants, repository locations and implementation status.
-- [Kubernetes Metadata & Release Integration Design](architecture.md) — source-backed, multi-language architecture and four decisions.
-- [Implementation, Rollout Safety and Verification](implementation-and-verification.md) — reference configuration, installation gates, canary/rollback and 28 acceptance scenarios.
+- [Unified Tagging Convention](unified-tagging-convention.md) — OTel-first field semantics, service/instance identity, IP and DNS contracts (proposal).
+- [Kubernetes Metadata & Release Integration Design](architecture.md) — source-backed, multi-language architecture and D1–D4 product decisions (not registered ADRs).
+- [Deployment Topology & Isolation Model](deployment-topology-and-isolation.md) — trusted Tenant, standard Region and optional Cell (proposal).
+- [Implementation, Rollout Safety and Verification](implementation-and-verification.md) — reference configuration, safety gates and T01–T44 planned acceptance cases.
 
 ## RepoFoundry Engineering Lifecycle
 

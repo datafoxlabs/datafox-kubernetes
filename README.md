@@ -4,19 +4,35 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 
 > **Status: architecture and implementation design only.** No Operator, Collector, Java image or Backend release API has been deployed or verified by this repository yet.
 
+## Tagging standard — review this first
+
+**[Datafox Unified Tagging Convention — OTel-first (中文)](docs/unified-tagging-convention.md)** defines service identity, environment, application version, Kubernetes metadata, cross-signal semantics, and release tagging. It is a **proposed contract**, not an approved ADR or implemented policy. Review it before treating the architecture/implementation examples as normative.
+
+The tagging convention also defines **service instance identity and network metadata**: `service.instance.id`, `k8s.pod.uid`, `k8s.pod.ip`, `host.ip`, and request-level network attributes. IP addresses are for locating an instance, not immutable instance IDs. The Operator-generated `service.instance.id` distinguishes Pod containers, but applications with multiple independent SDK processes in one container must provide their own unique IDs.
+
+The tagging convention also covers **service domains and DNS**: use standard request-level `server.address`, `url.full` and optional DNS attributes; do not turn URLs, Kubernetes Service DNS, or HTTP Host headers into permanent Service/Instance resource identity. Ingress/Gateway domain inventories are a separate, future product capability.
+
+## Tenancy, region, and cell topology
+
+**[Deployment Topology & Isolation Model (中文)](docs/deployment-topology-and-isolation.md)** separates P0 authenticated tenant isolation and standard OTel cloud/cluster location from P1 optional business cells. The only proposed P1 custom Resource field is `datafox.unit.id`; the optional release-event field is `target.unit_id`. A logical `datafox.region.id` and Cell registry are **deferred to P2 pending real use cases**, not v1 requirements.
+
 ## Architecture decisions
 
 | Decision | Contract |
 | --- | --- |
-| Version source | Standard `app.kubernetes.io/version` Pod Label; `resource.opentelemetry.io/service.version` Annotation for override; explicit `OTEL_RESOURCE_ATTRIBUTES` wins |
+| Version source | Standard Kubernetes app labels are **recommended defaults, not mandatory**. Existing enterprise/cloud labels may be mapped by deployment templates to OTel Resource annotations; explicit SDK/OTEL configuration remains supported and subject to injection compatibility checks |
 | Injection | Reuse OpenTelemetry Operator; opt-in per workload; no Datafox admission webhook |
 | Collector | Enrich Kubernetes infrastructure attributes; never rewrite `service.name` / `service.version` |
 | Release events | CI/CD actively reports deployment lifecycle to Datafox Backend |
 
+## Repository engineering
+
+[RepoFoundry Engineering Harness and documentation map](docs/index.md) provide the Codex/Portable agent workflow, Engineering Specs, governance indexes and validation CI. These support the design; they do not constitute Kubernetes runtime or release verification.
+
 ## Documentation
 
 - **[Architecture and design decisions (中文)](docs/architecture.md)** — The problem, system roles, data flows, language integration, release identity, failure domains and upstream source evidence.
-- **[Implementation, rollout safety and verification (中文)](docs/implementation-and-verification.md)** — Operator Instrumentation, Collector configuration, Java image requirements, multi-language usage, CI/CD API, canary/rollback and 28 acceptance tests.
+- **[Implementation, rollout safety and verification (中文)](docs/implementation-and-verification.md)** — Operator Instrumentation, Collector configuration, Java image requirements, multi-language usage, CI/CD API, canary/rollback and 44 planned acceptance tests.
 
 ### Recommended reading path
 
@@ -30,6 +46,8 @@ OpenTelemetry-based Kubernetes metadata and release integration for Datafox, des
 This repository will own Kubernetes manifests/Helm conventions, integration examples, packaging of a Datafox Java Agent injection image, validation tests and operational documentation. The Java runtime remains in `datafox-java-agent`. Datafox Backend owns the release event API and analytics.
 
 No custom Operator fork, Java Kubernetes detector, mandatory namespace-wide injection, privileged Go eBPF auto-instrumentation or automatic production rollout is part of v1.
+
+**Pre-deployment safeguards:** The planned CI gate rejects incompatible `OTEL_RESOURCE_ATTRIBUTES.valueFrom`, Java `JAVA_TOOL_OPTIONS.valueFrom`, unresolved or colliding `envFrom` keys in opted-in containers, and unresolved `OTEL_SERVICE_NAME` vs. `OTEL_RESOURCE_ATTRIBUTES.service.name` precedence conflicts (especially with Helm `app.kubernetes.io/instance`). The Pod Webhook can still match Pods without an injection annotation; admission match scope and fail-open observability coverage require separate validation. Collector Pod UID/IP association must also be limited to trusted, correctly scoped ingress; resource attributes alone are not authenticated identities. Connection-IP fallback is disabled in the illustrative Gateway configuration, and Pod IP extraction is explicitly configured. These contracts have not been implemented or tested yet.
 
 ## Upstream
 
