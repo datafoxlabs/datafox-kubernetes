@@ -2,7 +2,7 @@
 
 > **状态：Architecture Proposal · 2026-10-31。** 本文件是 [统一标签规范](unified-tagging-convention.md) 的部署拓扑补充，与 [Kubernetes 系统架构](architecture.md) 共用服务身份和发布事件契约。
 >
-> **实施边界：** P0 确定可信租户、OTel 服务身份和标准 Region/Cluster 属性；P1 为存在单元化业务的服务提供** 可选** `datafox.unit.id` 和发布事件 `target.unit_id`；P2 ** 暂缓**逻辑 Region、自建 Cell 注册中心、跨 Cluster/Region 拓扑目录和跨地域数据编排。
+> **实施边界：** P0 确定可信租户、OTel 服务身份和标准 Region/Cluster 属性；P1 为存在单元化业务的服务提供**可选** `datafox.unit.id` 和发布事件 `target.unit_id`；P2 **暂缓**逻辑 Region、自建 Cell 注册中心、跨 Cluster/Region 拓扑目录和跨地域数据编排。
 >
 > 本文为数据模型与集成约束，不代表 Backend 隔离、Unit 查询、OTel SDK/Collector 配置或发布 API 已实现。**不注册或自动接受正式 RepoFoundry ADR。**
 
@@ -65,7 +65,7 @@ Datafox 的平台 Tenant ID 由**认证与服务端授权** 确定，参与写�
 
 ### 3.1 定义和最小属性
 
-**Cell / Unit** 是企业定义、用于隔离业务流量或故障影响范围的稳定逻辑单元。它** 可以**作为独立发布、灰度、扩容或回滚目标，但不要求具备全部这些能力。Cell 既不是 Availability Zone，也不是 Kubernetes Namespace、Deployment 或 Cluster 的别名。
+**Cell / Unit** 是企业定义、用于隔离业务流量或故障影响范围的稳定逻辑单元。它**可以**作为独立发布、灰度、扩容或回滚目标，但不要求具备全部这些能力。Cell 既不是 Availability Zone，也不是 Kubernetes Namespace、Deployment 或 Cluster 的别名。
 
 Datafox v1 提议仅增加一个自定义 OTel Resource Attribute：
 
@@ -158,7 +158,7 @@ P2 的 `datafox.region.id` **尚不构成正式属性契约**；如果后来确�
 | Topo-11 | 业务 customer_id 被误用为全局 Resource | 受管理接入预检按策略处理，防止高基数与隐私问题 |
 | Topo-12 | 客户端伪造 `cloud.region` 企图改变驻留区域 | 后端路由以可信策略为准，不受 Resource 影响 |
 
-Topo-01–Topo-03 和 Topo-12 是 **P0 安全与语义合同**；Topo-04–Topo-10 是 **P1 可选 Cell 功能启用时的合同**；复杂跨云逻辑地域的拓扑目录不进入 P0/P1 测试门禁。全部测试** 尚未执行**，需要后续 CI/Backend/Collector 证据。
+Topo-01–Topo-03 和 Topo-12 是 **P0 安全与语义合同**；Topo-04–Topo-10 是 **P1 可选 Cell 功能启用时的合同**；复杂跨云逻辑地域的拓扑目录不进入 P0/P1 测试门禁。全部测试**尚未执行**，需要后续 CI/Backend/Collector 证据。
 
 ## 8. 源码依据与未验证事项
 
@@ -168,4 +168,4 @@ Topo-01–Topo-03 和 Topo-12 是 **P0 安全与语义合同**；Topo-04–Topo-
 - [OTel Deployment Attributes](https://opentelemetry.io/docs/specs/semconv/registry/attributes/deployment/) — Environment 与部署字段的演进。
 - [OTel Operator Resource Attributes（固定快照）](https://github.com/open-telemetry/opentelemetry-operator/blob/cddb78156d2556c80d3b8fb7c7bbfa7c064f9617/docs/auto-instrumentation/resource-attributes.md) — 注入时的 Resource 来源与优先级。
 
-**已形成架构决策方向**：P0 只复用标准身份与可信租户，P1 允许单个可选 Unit 属性，P2 需求驱动。** 仍待评审/实现**：Unit ID 的实际业务来源、Backend 的查询与 Release API 字段、跨地域授权与数据驻留。** 未执行**任何 Kubernetes/SDK/Collector/Backend E2E 或权限测试。
+**已形成架构决策方向**：P0 只复用标准身份与可信租户，P1 允许单个可选 Unit 属性，P2 需求驱动。**仍待评审/实现**：Unit ID 的实际业务来源、Backend 的查询与 Release API 字段、跨地域授权与数据驻留。**未执行**任何 Kubernetes/SDK/Collector/Backend E2E 或权限测试。
