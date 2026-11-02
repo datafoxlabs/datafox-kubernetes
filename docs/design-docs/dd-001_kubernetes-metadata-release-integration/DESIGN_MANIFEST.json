@@ -1,0 +1,37 @@
+{
+  "artifact_type": "design-manifest",
+  "author": "Datafox engineering (proposal)",
+  "created": "2026-11-02",
+  "design_dependencies": [],
+  "design_id": "DD-001",
+  "documents": [
+    {
+      "bytes": 2827,
+      "id": "DD-001",
+      "path": "DESIGN.md",
+      "role": "entrypoint",
+      "sha256": "3ea5d4a99791ddfc9617f673bade7b02c10733965ecf1aeed601d0a2cbcfa85a",
+      "title": "Datafox Kubernetes Metadata and Release Integration"
+    },
+    {
+      "bytes": 836,
+      "id": "DOC-001",
+      "path": "README.md",
+      "role": "reading-map",
+      "sha256": "ead8bc9bcb3173cb50571b0698bbc09a4233bbfcce037b6222b59677fcf5203e",
+      "title": "Datafox Kubernetes Metadata and Release Integration — Reading map"
+    }
+  ],
+  "entrypoint": "DESIGN.md",
+  "id": "DD-001-MANIFEST",
+  "layout": "package",
+  "metadata_schema": "1",
+  "owner": "Unassigned",
+  "published_revision": 0,
+  "reading_map": "README.md",
+  "schema_version": "1",
+  "status": "draft",
+  "title": "Datafox Kubernetes Metadata and Release Integration — Design manifest",
+  "updated": "2026-11-02",
+  "working_revision": 1
+}
