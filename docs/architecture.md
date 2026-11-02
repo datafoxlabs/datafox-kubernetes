@@ -120,11 +120,11 @@ flowchart LR
 
 ## 3. 契约一：在 Pod 创建时确定应用身份
 
-本节聚焦 **Operator/SDK 的运行时职责**；属性名称、数据类型、Kubernetes Label/Annotation 映射、服务身份定义和跨信号规则的唯一维护位置为 [统一标签规范](unified-tagging-convention.md)。
+本节聚焦 **Operator/SDK 的运行时职责**；属性 Key、类型与稳定性见[属性登记表](attribute-registry.md)；Label/Annotation 映射见[Kubernetes 映射合同](kubernetes-resource-mapping.md)；逻辑服务身份和跨信号语义见[统一语义合同](unified-tagging-convention.md)。
 
 ### 3.1 版本来源与优先级
 
-本设计保留 **D1：推荐使用标准 Pod Label + OTel Resource Annotation** 的架构决策。标准字段是默认接入路径，**不是强制的 Kubernetes 标签命名政策**。企业自定义 Label 可由已有 Helm、Kustomize 或 CI/CD 模板转换为标准 Resource Annotation；已显式提供 OTel SDK Resource 的应用不需要为 Datafox 添加重复 Label。[字段规范与适配路径](unified-tagging-convention.md)。
+本设计保留 **D1：推荐使用标准 Pod Label + OTel Resource Annotation** 的架构决策。标准字段是默认接入路径，**不是强制的 Kubernetes 标签命名政策**。企业自定义 Label 可由已有 Helm、Kustomize 或 CI/CD 模板转换为标准 Resource Annotation；已显式提供 OTel SDK Resource 的应用不需要为 Datafox 添加重复 Label。[Kubernetes 资源映射与适配](kubernetes-resource-mapping.md)。
 
 | 层级 | 来源 | 作用 |
 | --- | --- | --- |
@@ -190,7 +190,7 @@ Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Co
 
 对于 VM/物理机，按需使用 OTel `host.id` / `host.ip`（后者为 `string[]`）；针对某一次请求/连接的 `server.address`、`client.address`、`network.peer.address` 不应写成进程级 Resource。Kubernetes Pod IP 可以被回收复用，Backend 关联必须依赖 Pod UID、Cluster 和有效时间，而不是仅用 IP 拼接实例 ID。
 
-字段类型、当前稳定性、多容器、双栈、代理、隐私和 8 项合同测试由 [Unified Tagging Convention 3.5 节](unified-tagging-convention.md) 统一定义。本架构不因此引入 Java Agent 自定义 IP Detector，也不要求每条 Span 附加 IP。
+字段类型与当前稳定性由[属性登记表](attribute-registry.md)维护；多容器、双栈、代理、隐私和 8 项实例合同测试由[实例与 IP 验收合同](tagging-contract-tests.md#13-实例与-ip-合同测试)定义。本架构不因此引入 Java Agent 自定义 IP Detector，也不要求每条 Span 附加 IP。
 
 ### 4.3 服务访问域名与 Kubernetes Service DNS 不属于实例身份
 
@@ -198,7 +198,7 @@ Operator 上游也可能提前注入部分 `k8s.*` 属性；因此这里的“Co
 
 **P0** 复用官方 HTTP/RPC Instrumentation 的标准 Span 属性，保留实际访问目标；Kubernetes Service DNS 使用现有集群域名，不能硬编码 `cluster.local`。当 API Gateway/Ingress 的 Host 头、转发头或 URL 不可信时，不能据此改变 Datafox 的服务所有权、Tenant 权限或后端发布关联。**P1+** 若需要“一个服务有哪些公网/内网域名”的资产目录，应由 Backend 根据有权限的路由/Service 对象建立显式的 Service Endpoint 关系，而非写入所有 SDK Resource。
 
-字段级稳定性、URL 脱敏、Kubernetes Service 与 Headless DNS 的边界，以及 Domain-01–Domain-09 合同测试由 [Unified Tagging Convention 第 3.6 节](unified-tagging-convention.md) 统一持有。v1 不增加专有域名 Detector 或反向 DNS 查询。
+字段级稳定性由[属性登记表](attribute-registry.md)维护；URL 脱敏、Kubernetes Service 与 Headless DNS 的语义边界见[统一语义合同](unified-tagging-convention.md#22-运行位置网络地址与租户权限)，Domain-01–Domain-09 的断言由[域名与 DNS 验收合同](tagging-contract-tests.md#14-域名dns-与-endpoint-合同测试)定义。v1 不增加专有域名 Detector 或反向 DNS 查询。
 
 ## 5. 契约三：Release Tracking 保存独立的部署事实
 
