@@ -1,6 +1,7 @@
 {
   "high_water": {
-    "DD": 0
+    "DD": 1,
+    "DOC:DD-001": 1
   },
   "version": 1
 }

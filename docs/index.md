@@ -29,7 +29,12 @@
 
 **测试索引不等于测试通过：** 实施验收编号为 **T01–T44**；跨仓库语义合同分别以 **Tag-01–15**、**Topo-01–12**、**Inst-01–08**、**Domain-01–09** 维护。各索引仍是拟执行的合同，不表示测试已运行，也不应被复制为第二套相互冲突的权威测试表。
 
-## 3. RepoFoundry AI 工程治理
+## 3. 受治理的系统 Design
+
+- [DD-001 — Kubernetes Metadata and Release Integration（Draft）](design-docs/dd-001_kubernetes-metadata-release-integration/DESIGN.md)：以现有系统架构提案为输入的正式 Design Package，当前为工作修订版，**尚未 Review Ready 或 Approved**。原有四份产品文档仍是对应细节的权威来源，Design 负责汇总系统边界与跨文档不变量。
+- [Design 生命周期索引](DESIGN-DOCS.md)：由 `designctl` 生成和更新，不能以手动改写索引代替注册、审批或快照。
+
+## 4. RepoFoundry AI 工程治理
 
 以下是 Harness 提供的工程工作流、索引与控制文件。多数仍是**初始化骨架**，不是已完成的研究、批准的 ADR、上线报告或生产 SLO。
 
@@ -45,7 +50,7 @@
 
 **受管文件约束：** `docs/.engineering/`、`docs/.epctl/`、`docs/.designctl/`、`docs/agent-guides/managed/` 和 `.repo-foundry/` 中的版本、锁与状态遵守各自工具的生命周期规则。不要为了“目录整洁”手动重命名、搬移、重排或改写受管内容；需要升级、登记或修复时使用相应 RepoFoundry 流程及预览/校验。
 
-## 4. 文档变更规则
+## 5. 文档变更规则
 
 1. **先确认职责**：字段语义改统一标签规范；架构边界改系统架构；部署拓扑改隔离模型；可执行步骤和验收改实施手册。导航页只更新指向和阅读路径。
 2. **维持链接稳定**：既有四份设计文档保留在 `docs/` 根目录。只有确有必要且补齐所有相对链接、外部引用迁移方案时才讨论重命名或移动。
