@@ -1,6 +1,6 @@
 # Datafox 多租户、多地域与可选单元部署模型
 
-> **状态：Architecture Proposal · 2026-10-31。** 本文件是 [统一标签规范](unified-tagging-convention.md) 的部署拓扑补充，与 [Kubernetes 系统架构](architecture.md) 共用服务身份和发布事件契约。
+> **状态：Architecture Proposal · 2026-11-02（结构整理，仍待评审）。** 本文件是 [统一标签规范](unified-tagging-convention.md) 的部署拓扑补充，与 [Kubernetes 系统架构](architecture.md) 共用服务身份和发布事件契约。
 >
 > **实施边界：** P0 确定可信租户、OTel 服务身份和标准 Region/Cluster 属性；P1 为存在单元化业务的服务提供**可选** `datafox.unit.id` 和发布事件 `target.unit_id`；P2 **暂缓**逻辑 Region、自建 Cell 注册中心、跨 Cluster/Region 拓扑目录和跨地域数据编排。
 >
@@ -50,12 +50,14 @@ Datafox 的平台 Tenant ID 由**认证与服务端授权** 确定，参与写�
 
 ### 2.3 复用标准云地域和 Kubernetes 属性
 
-| 维度 | 标准属性 | 来源与约束 |
+下表是**部署维度与属性的对应关系**，不是另一份 Attribute Registry。字段类型、上游稳定性与 Resource 使用规则以 [OpenTelemetry Semantic Conventions](https://github.com/open-telemetry/semantic-conventions/tree/main/docs/registry/attributes) 和 [统一标签规范第 3 节](unified-tagging-convention.md#3-标准属性与-datafox-使用约束) 为准。本表只说明 Datafox 如何理解这些部署维度。
+
+| 部署维度 | OTel 属性 | Datafox 关联约束 |
 | --- | --- | --- |
-| 云厂商 / 云账号 | `cloud.provider`、`cloud.account.id`（当前 OTel Development） | 保留厂商与账号原始语义；不是租户授权信息 |
-| 云地域 / 可用区 | `cloud.region`、`cloud.availability_zone`（当前 OTel Development） | 保留云厂商原生值；不同云的 Region 编码不必相同 |
-| Kubernetes 集群 | `k8s.cluster.uid`、`k8s.cluster.name`（Stable） | UID 辅助准确定位，Name 主要用于展示 |
-| Workload / Pod | `k8s.deployment.name` 等、`k8s.pod.uid` | 按实际 Kubernetes 对象提取；不是单元标识 |
+| 云厂商 / 云账号 | `cloud.provider`、`cloud.account.id` | 保留真实厂商与账号，不以云账号识别 Datafox Tenant |
+| 云地域 / 可用区 | `cloud.region`、`cloud.availability_zone` | 保留云厂商原生值；不同云厂商的 Region 不强制归一化，AZ 不等于 Cell |
+| Kubernetes Cluster | `k8s.cluster.uid`、`k8s.cluster.name` | UID 用于辅助定位集群，Name 用于可读展示；不将 Cluster ID 当 Cell |
+| Workload / Pod | `k8s.deployment.name` 等实际 Workload 属性、`k8s.pod.uid` | 按实际对象提取；Pod UID 是运行位置的关联键，不是服务实例或 Unit ID |
 
 无云 Region 的自建机房服务可以保留该属性缺失状态，不强制注册 `datafox.region.id`。地域归并、IDC 目录与数据驻留是不同的产品需求，**P0/P1 不实现跨云逻辑地域归一化**。
 
@@ -67,11 +69,7 @@ Datafox 的平台 Tenant ID 由**认证与服务端授权** 确定，参与写�
 
 **Cell / Unit** 是企业定义、用于隔离业务流量或故障影响范围的稳定逻辑单元。它**可以**作为独立发布、灰度、扩容或回滚目标，但不要求具备全部这些能力。Cell 既不是 Availability Zone，也不是 Kubernetes Namespace、Deployment 或 Cluster 的别名。
 
-Datafox v1 提议仅增加一个自定义 OTel Resource Attribute：
-
-| 属性 | 类型 | 必需性 | 示例 | 意义 |
-| --- | --- | --- | --- | --- |
-| `datafox.unit.id` | string | **可选**；单元化业务启用 | `cell-a` | 稳定的业务流量或故障隔离单元 |
+Datafox v1 只提议一个自定义属性：`datafox.unit.id`，类型为 `string`，使用位置为 OTel Resource。它表示稳定的业务流量或故障隔离单元，例如 `cell-a`。该字段是 **P1 可选提案**：只有工作负载确实启用 Cell 时才提供，普通应用不要求设置。
 
 `datafox.unit.id` **不是 OTel 标准属性**。不要在 P1 同时增加 `datafox.unit.name`、`datafox.cell.id`、`datafox.unit.region` 等平行字段；Friendly Name 可以作为产品展示层配置，但不需要引入一个强制的注册中心。
 
@@ -143,7 +141,7 @@ P2 的 `datafox.region.id` **尚不构成正式属性契约**；如果后来确�
 
 ## 7. 需要实际执行的合同测试
 
-| 测试 | 场景 | 预期 |
+| Case | 输入 / 场景 | 预期结果 |
 | --- | --- | --- |
 | Topo-01 | 两个平台 Tenant 上报同名 Service、Unit | 隔离数据、查询与发布事件 |
 | Topo-02 | 客户端伪造 `tenant_id` / `datafox.tenant.id` | 不得改变 Backend 授权或落盘归属 |
@@ -158,7 +156,7 @@ P2 的 `datafox.region.id` **尚不构成正式属性契约**；如果后来确�
 | Topo-11 | 业务 customer_id 被误用为全局 Resource | 受管理接入预检按策略处理，防止高基数与隐私问题 |
 | Topo-12 | 客户端伪造 `cloud.region` 企图改变驻留区域 | 后端路由以可信策略为准，不受 Resource 影响 |
 
-Topo-01–Topo-03 和 Topo-12 是 **P0 安全与语义合同**；Topo-04–Topo-10 是 **P1 可选 Cell 功能启用时的合同**；复杂跨云逻辑地域的拓扑目录不进入 P0/P1 测试门禁。全部测试**尚未执行**，需要后续 CI/Backend/Collector 证据。
+Topo-01–Topo-03 和 Topo-11–Topo-12 是 **P0 安全、隐私与语义合同**；Topo-04–Topo-10 是 **P1 可选 Cell 功能启用时的合同**；复杂跨云逻辑地域的拓扑目录不进入 P0/P1 测试门禁。全部测试**尚未执行**，需要后续 CI/Backend/Collector 证据。
 
 ## 8. 源码依据与未验证事项
 
